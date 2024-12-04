@@ -4,6 +4,9 @@
 // Feel free to delete this line.
 #![allow(clippy::too_many_arguments, clippy::type_complexity)]
 
+mod flip;
+
+use crate::flip::FlipPlugin;
 use bevy::asset::AssetMetaCheck;
 use bevy::prelude::*;
 
@@ -17,13 +20,10 @@ fn main() {
             ..default()
         }))
         .add_systems(Startup, setup)
+        .add_plugins(FlipPlugin)
         .run();
 }
 
-fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
+fn setup(mut commands: Commands) {
     commands.spawn(Camera2d);
-    commands.spawn(Sprite {
-        image: asset_server.load("ducky.png"),
-        ..Default::default()
-    });
 }
