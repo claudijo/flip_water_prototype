@@ -1,6 +1,6 @@
+use crate::flip::utils::corner_weight;
 use bevy::prelude::*;
 use bevy::render::render_resource::encase::private::RuntimeSizedArray;
-use crate::flip::utils::corner_weight;
 
 #[derive(Component, Default)]
 pub struct Velocity(pub Vec2);
@@ -35,8 +35,15 @@ pub enum Corner {
     BottomLeft,
     BottomRight,
     TopRight,
-    TopLeft
+    TopLeft,
 }
+
+const ALL_CORNERS: [Corner; 4] = [
+    Corner::BottomLeft,
+    Corner::BottomRight,
+    Corner::TopRight,
+    Corner::TopLeft,
+];
 
 #[derive(Component, Default, Debug)]
 pub struct StaggeredGrid {
@@ -57,9 +64,11 @@ impl StaggeredGrid {
         self
     }
 
-    pub fn corner_weight(&self, corner: Corner, offset: Vec2) -> f32 {
+    pub fn corner_weight(&self, corner: &Corner, offset: Vec2) -> f32 {
         match corner {
-            Corner::BottomLeft => (1. - offset.x / self.cell_size) * (1. - offset.y / self.cell_size),
+            Corner::BottomLeft => {
+                (1. - offset.x / self.cell_size) * (1. - offset.y / self.cell_size)
+            }
             Corner::BottomRight => offset.x / self.cell_size * (1. - offset.y / self.cell_size),
             Corner::TopRight => (offset.x / self.cell_size) * (offset.y / self.cell_size),
             Corner::TopLeft => (1. - offset.x / self.cell_size) * (offset.y / self.cell_size),
@@ -80,7 +89,7 @@ impl StaggeredGrid {
 
     pub fn col_row_from_cell_position(&self, cell_position: Vec2) -> Option<(usize, usize)> {
         if cell_position.x < 0. || cell_position.y < 0. {
-            return None
+            return None;
         }
 
         let col = cell_position.x as usize;
@@ -132,25 +141,15 @@ impl StaggeredGrid {
         Vec2::new(0., self.cell_size)
     }
 
-    pub fn weighted_horizontal_sum_for_point(&self, point: Vec2) -> f32 {
-        let shifted_down_point = point + self.step_down() / 2.;
-        let local_offset = self.local_offset(shifted_down_point);
-
+    pub fn weighted_sum(&self, corner_values: Vec<Option<f32>>, point_offset: Vec2) -> f32 {
         let mut numerator = 0.;
         let mut denominator = 0.;
 
-        for (cell, corner) in [
-            (self.cell_at(shifted_down_point), Corner::BottomLeft),
-            (self.cell_at(shifted_down_point + self.step_right()), Corner::BottomRight),
-            (self.cell_at(shifted_down_point + self.step_right() + self.step_up()), Corner::TopRight),
-            (self.cell_at(shifted_down_point + self.step_up()), Corner::TopLeft),
-        ] {
-            if let Some(cell) = cell {
-                if let Some(velocity) = cell.horizontal_flow {
-                    let weight =  self.corner_weight(corner, local_offset);
-                    numerator += weight * velocity;
-                    denominator += weight;
-                }
+        for (i, corner_value) in corner_values.iter().enumerate() {
+            if let Some(value) = corner_value {
+                let weight = self.corner_weight(&ALL_CORNERS[i], point_offset);
+                numerator += weight * value;
+                denominator += weight;
             }
         }
 
@@ -161,33 +160,38 @@ impl StaggeredGrid {
         numerator / denominator
     }
 
+    pub fn weighted_horizontal_sum_for_point(&self, point: Vec2) -> f32 {
+        let shifted_down_point = point + self.step_down() / 2.;
+        let local_offset = self.local_offset(shifted_down_point);
+
+        let corner_values = [
+            self.cell_at(shifted_down_point),
+            self.cell_at(shifted_down_point + self.step_right()),
+            self.cell_at(shifted_down_point + self.step_right() + self.step_up()),
+            self.cell_at(shifted_down_point + self.step_up()),
+        ]
+        .iter()
+        .map(|cell| (*cell)?.horizontal_flow)
+        .collect::<Vec<_>>();
+
+        self.weighted_sum(corner_values, local_offset)
+    }
+
     pub fn weighted_vertical_sum_for_point(&self, point: Vec2) -> f32 {
         let shifted_left_point = point + self.step_left() / 2.;
         let local_offset = self.local_offset(shifted_left_point);
 
-        let mut numerator = 0.;
-        let mut denominator = 0.;
+        let corner_values = [
+            self.cell_at(shifted_left_point + self.step_down()),
+            self.cell_at(shifted_left_point + self.step_right() + self.step_down()),
+            self.cell_at(shifted_left_point + self.step_right()),
+            self.cell_at(shifted_left_point),
+        ]
+        .iter()
+        .map(|cell| (*cell)?.vertical_flow)
+        .collect::<Vec<_>>();
 
-        for (cell, corner) in [
-            (self.cell_at(shifted_left_point), Corner::TopLeft),
-            (self.cell_at(shifted_left_point + self.step_right()), Corner::TopRight),
-            (self.cell_at(shifted_left_point + self.step_right() + self.step_down()), Corner::BottomRight),
-            (self.cell_at(shifted_left_point + self.step_down()), Corner::BottomLeft),
-        ] {
-            if let Some(cell) = cell {
-                if let Some(velocity) = cell.vertical_flow {
-                    let weight =  self.corner_weight(corner, local_offset);
-                    numerator += weight * velocity;
-                    denominator += weight;
-                }
-            }
-        }
-
-        if denominator == 0. {
-            return 0.;
-        }
-
-        numerator / denominator
+        self.weighted_sum(corner_values, local_offset)
     }
 
     pub fn clear_cells(&mut self) {
@@ -251,11 +255,28 @@ mod tests {
     fn col_row_from_cell_position_works() {
         let grid = StaggeredGrid::new(3, 2);
 
-        assert_eq!(grid.col_row_from_cell_position(Vec2::new(-1., 0.)).is_none(), true);
-        assert_eq!(grid.col_row_from_cell_position(Vec2::new(0., -1.)).is_none(), true);
-        assert_eq!(grid.col_row_from_cell_position(Vec2::new(3., 0.)).is_none(), true);
-        assert_eq!(grid.col_row_from_cell_position(Vec2::new(0., 2.)).is_none(), true);
-        assert_eq!(grid.col_row_from_cell_position(Vec2::new(2., 1.)), Some((2, 1)));
+        assert_eq!(
+            grid.col_row_from_cell_position(Vec2::new(-1., 0.))
+                .is_none(),
+            true
+        );
+        assert_eq!(
+            grid.col_row_from_cell_position(Vec2::new(0., -1.))
+                .is_none(),
+            true
+        );
+        assert_eq!(
+            grid.col_row_from_cell_position(Vec2::new(3., 0.)).is_none(),
+            true
+        );
+        assert_eq!(
+            grid.col_row_from_cell_position(Vec2::new(0., 2.)).is_none(),
+            true
+        );
+        assert_eq!(
+            grid.col_row_from_cell_position(Vec2::new(2., 1.)),
+            Some((2, 1))
+        );
     }
 
     #[test]
@@ -273,13 +294,28 @@ mod tests {
         let mut grid = StaggeredGrid::new(2, 2).with_cell_size(10.);
 
         grid.cell_at_mut(Vec2::new(5., 5.)).unwrap().horizontal_flow = Some(10.);
-        grid.cell_at_mut(Vec2::new(15., 5.)).unwrap().horizontal_flow = Some(20.);
-        grid.cell_at_mut(Vec2::new(15., 15.)).unwrap().horizontal_flow = Some(30.);
-        grid.cell_at_mut(Vec2::new(5., 15.)).unwrap().horizontal_flow = Some(40.);
+        grid.cell_at_mut(Vec2::new(15., 5.))
+            .unwrap()
+            .horizontal_flow = Some(20.);
+        grid.cell_at_mut(Vec2::new(15., 15.))
+            .unwrap()
+            .horizontal_flow = Some(30.);
+        grid.cell_at_mut(Vec2::new(5., 15.))
+            .unwrap()
+            .horizontal_flow = Some(40.);
 
-        assert_eq!(grid.weighted_horizontal_sum_for_point(Vec2::new(2.5, 12.5)), 31.25);
-        assert_eq!(grid.weighted_horizontal_sum_for_point(Vec2::new(2.5, 7.5)), 18.75);
-        assert_eq!(grid.weighted_horizontal_sum_for_point(Vec2::new(2.5, 2.5)), 12.5);
+        assert_eq!(
+            grid.weighted_horizontal_sum_for_point(Vec2::new(2.5, 12.5)),
+            31.25
+        );
+        assert_eq!(
+            grid.weighted_horizontal_sum_for_point(Vec2::new(2.5, 7.5)),
+            18.75
+        );
+        assert_eq!(
+            grid.weighted_horizontal_sum_for_point(Vec2::new(2.5, 2.5)),
+            12.5
+        );
     }
 
     #[test]
@@ -291,8 +327,17 @@ mod tests {
         grid.cell_at_mut(Vec2::new(15., 15.)).unwrap().vertical_flow = Some(30.);
         grid.cell_at_mut(Vec2::new(5., 15.)).unwrap().vertical_flow = Some(40.);
 
-        assert_eq!(grid.weighted_vertical_sum_for_point(Vec2::new(12.5, 17.5)), 28.75);
-        assert_eq!(grid.weighted_vertical_sum_for_point(Vec2::new(7.5, 17.5)), 31.25);
-        assert_eq!(grid.weighted_vertical_sum_for_point(Vec2::new(2.5, 17.5)), 32.5);
+        assert_eq!(
+            grid.weighted_vertical_sum_for_point(Vec2::new(12.5, 17.5)),
+            28.75
+        );
+        assert_eq!(
+            grid.weighted_vertical_sum_for_point(Vec2::new(7.5, 17.5)),
+            31.25
+        );
+        assert_eq!(
+            grid.weighted_vertical_sum_for_point(Vec2::new(2.5, 17.5)),
+            32.5
+        );
     }
 }

@@ -4,7 +4,7 @@ pub enum Corner {
     BottomLeft,
     BottomRight,
     TopRight,
-    TopLeft
+    TopLeft,
 }
 
 pub fn corner_weight(corner: Corner, spacing: f32, offset: Vec2) -> f32 {
@@ -41,4 +41,3 @@ pub fn corner_weight(corner: Corner, spacing: f32, offset: Vec2) -> f32 {
 //
 //     numerator / denominator
 // }
-
