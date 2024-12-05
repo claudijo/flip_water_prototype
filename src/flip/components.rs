@@ -191,18 +191,13 @@ impl StaggeredGrid {
     }
 
     pub fn clear_cells(&mut self) {
-        if self.cells.is_empty() {
-            return;
-        }
+        let cols = self.cols();
+        let rows = self.rows();
 
-        let cols = self.cells.len();
-        let rows = self.cells[0].len();
-        let cell_count = cols * rows;
-
-        for i in 0..cell_count {
-            let col = i % cols;
-            let row = i / rows;
-            self.cells[col][row].clear();
+        for col in 0..cols {
+            for row in 0..rows {
+                self.cells[col][row].clear();
+            }
         }
     }
 }
@@ -300,5 +295,4 @@ mod tests {
         assert_eq!(grid.weighted_vertical_sum_for_point(Vec2::new(7.5, 17.5)), 31.25);
         assert_eq!(grid.weighted_vertical_sum_for_point(Vec2::new(2.5, 17.5)), 32.5);
     }
-
 }
