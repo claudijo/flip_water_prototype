@@ -20,8 +20,7 @@ pub struct Cell {
     pub horizontal_flow: Option<f32>,
     pub vertical_flow: Option<f32>,
     pub sum_of_weights: Vec2,
-
-    pub s: f32, // 0 for solid cells, 1 for fluid cells. TODO: Check if we should change type for this field.
+    pub divergence_scale: f32, // 0 for solid cells, 1 for fluid cells.
 }
 
 impl Cell {
@@ -29,6 +28,16 @@ impl Cell {
         self.horizontal_flow = None;
         self.vertical_flow = None;
         self.sum_of_weights = Vec2::ZERO;
+    }
+
+    pub fn even_out_flow(&mut self) {
+        if let Some(flow) = self.horizontal_flow {
+            self.horizontal_flow = Some(flow / self.sum_of_weights.x);
+        }
+
+        if let Some(flow) = self.vertical_flow {
+            self.vertical_flow = Some(flow / self.sum_of_weights.y);
+        }
     }
 }
 
@@ -195,7 +204,7 @@ impl StaggeredGrid {
         self.weighted_sum(corner_values, local_offset)
     }
 
-    pub fn accumulate_horizontal_flow_from_particle(&mut self, point: Vec2, velocity: Vec2) {
+    fn accumulate_horizontal_flow_from_particle(&mut self, point: Vec2, flow_component: f32) {
         let shifted_down_point = point + self.step_down() / 2.;
         let local_offset = self.local_offset(shifted_down_point);
 
@@ -206,20 +215,23 @@ impl StaggeredGrid {
             shifted_down_point + self.step_right(),
             shifted_down_point + self.step_right() + self.step_up(),
             shifted_down_point + self.step_up(),
-        ].iter().enumerate() {
+        ]
+        .iter()
+        .enumerate()
+        {
             if let Some(mut cell) = self.cell_at_mut(*point) {
                 let weight = corner_weights[i];
                 cell.sum_of_weights += weight;
                 if let Some(mut directional_flow) = cell.horizontal_flow {
-                    cell.horizontal_flow = Some(directional_flow + velocity.x * weight);
+                    cell.horizontal_flow = Some(directional_flow + flow_component * weight);
                 } else {
-                    cell.horizontal_flow = Some(velocity.x * weight);
+                    cell.horizontal_flow = Some(flow_component * weight);
                 }
             }
         }
     }
 
-    pub fn accumulate_vertical_flow_from_particle(&mut self, point: Vec2, velocity: Vec2) {
+    fn accumulate_vertical_flow_from_particle(&mut self, point: Vec2, flow_component: f32) {
         let shifted_left_point = point + self.step_left() / 2.;
         let local_offset = self.local_offset(shifted_left_point);
 
@@ -230,15 +242,31 @@ impl StaggeredGrid {
             shifted_left_point + self.step_down() + self.step_right(),
             shifted_left_point + self.step_right(),
             shifted_left_point,
-        ].iter().enumerate() {
+        ]
+        .iter()
+        .enumerate()
+        {
             if let Some(mut cell) = self.cell_at_mut(*point) {
                 let weight = corner_weights[i];
                 cell.sum_of_weights += weight;
                 if let Some(mut directional_flow) = cell.vertical_flow {
-                    cell.vertical_flow = Some(directional_flow + velocity.y * weight);
+                    cell.vertical_flow = Some(directional_flow + flow_component * weight);
                 } else {
-                    cell.vertical_flow = Some(velocity.y * weight);
+                    cell.vertical_flow = Some(flow_component * weight);
                 }
+            }
+        }
+    }
+
+    pub fn accumulate_flow_from_particle(&mut self, point: Vec2, flow: Vec2) {
+        self.accumulate_horizontal_flow_from_particle(point, flow.x);
+        self.accumulate_vertical_flow_from_particle(point, flow.y);
+    }
+
+    pub fn even_out_flow_for_cell(&mut self, col: usize, row: usize) {
+        if let Some(rows) = self.cells.get_mut(col) {
+            if let Some(cell) = rows.get_mut(row) {
+                cell.even_out_flow();
             }
         }
     }
@@ -250,6 +278,131 @@ impl StaggeredGrid {
         for col in 0..cols {
             for row in 0..rows {
                 self.cells[col][row].clear();
+            }
+        }
+    }
+
+    pub fn divergence_for_cell(&self, col: usize, row: usize) -> Option<f32> {
+        if col >= self.cols() {
+            return None;
+        }
+
+        if row >= self.rows() {
+            return None;
+        }
+
+        let cell = self.cells[col][row];
+
+        // Solid cell
+        if cell.divergence_scale == 0. {
+            return None;
+        }
+
+        let left = cell.horizontal_flow.unwrap_or(0.);
+        let up = cell.vertical_flow.unwrap_or(0.);
+
+        let down = if row > 0 {
+            self.cells[col][row - 1].vertical_flow.unwrap_or(0.)
+        } else {
+            0.
+        };
+
+        let right = if col + 1 < self.cols() {
+            self.cells[col + 1][row].horizontal_flow.unwrap_or(0.)
+        } else {
+            0.
+        };
+
+        Some(right - left + down - up)
+    }
+
+    fn divergence_scale_for_cell(&self, col: usize, row: usize) -> f32 {
+        let Some(rows) = self.cells.get(col) else {
+            return 0.;
+        };
+
+        let Some(cell) = rows.get(row) else {
+            return 0.;
+        };
+
+        cell.divergence_scale
+    }
+
+    pub fn sum_divergence_scale_for_neighboring_cells(&self, col: usize, row: usize) -> f32 {
+        self.divergence_scale_for_cell(col - 1, row)
+            + self.divergence_scale_for_cell(col + 1, row)
+            + self.divergence_scale_for_cell(col, row - 1)
+            + self.divergence_scale_for_cell(col, row + 1)
+    }
+
+    pub fn project_flow_for_cell(
+        &mut self,
+        col: usize,
+        row: usize,
+        iterations: usize,
+        over_relaxation: f32,
+    ) {
+        for _ in 0..iterations {
+            let Some(mut divergence) = self.divergence_for_cell(col, row) else {
+                return;
+            };
+
+            divergence *= over_relaxation;
+
+            let divergence_scale_left = self.divergence_scale_for_cell(col - 1, row);
+            let divergence_scale_right = self.divergence_scale_for_cell(col + 1, row);
+            let divergence_scale_up = self.divergence_scale_for_cell(col, row + 1);
+            let divergence_scale_down = self.divergence_scale_for_cell(col, row - 1);
+
+            let sum_divergence_scale_for_neighboring_cells = divergence_scale_left
+                + divergence_scale_right
+                + divergence_scale_up
+                + divergence_scale_down;
+
+            if sum_divergence_scale_for_neighboring_cells == 0. {
+                return;
+            }
+
+            if let Some(rows) = self.cells.get_mut(col) {
+                if let Some(cell) = rows.get_mut(row) {
+                    // Flow to cell from left
+                    let horizontal_flow = cell.horizontal_flow.unwrap_or(0.);
+                    cell.horizontal_flow = Some(
+                        horizontal_flow
+                            + divergence * divergence_scale_left
+                                / sum_divergence_scale_for_neighboring_cells,
+                    );
+
+                    // Flow to cell from up
+                    let vertical_flow = cell.vertical_flow.unwrap_or(0.);
+                    cell.vertical_flow = Some(
+                        vertical_flow
+                            + divergence * divergence_scale_up
+                                / sum_divergence_scale_for_neighboring_cells,
+                    );
+                }
+
+                if let Some(cell_down) = rows.get_mut(row - 1) {
+                    // Flow to cell from down
+                    let vertical_flow = cell_down.vertical_flow.unwrap_or(0.);
+                    cell_down.vertical_flow = Some(
+                        vertical_flow
+                            - divergence * divergence_scale_down
+                                / sum_divergence_scale_for_neighboring_cells,
+                    );
+                }
+            }
+
+            if let Some(rows) = self.cells.get_mut(col + 1) {
+                if let Some(cell) = rows.get_mut(row) {
+                    // Flow to cell from right
+                    let horizontal_flow = cell.horizontal_flow.unwrap_or(0.);
+                    cell.horizontal_flow = Some(
+                        horizontal_flow
+                            - divergence * divergence_scale_right
+                                / sum_divergence_scale_for_neighboring_cells,
+                    );
+                }
             }
         }
     }
@@ -393,36 +546,84 @@ mod tests {
     #[test]
     fn accumulate_horizontal_flow_from_particle_works() {
         let mut grid = StaggeredGrid::new(2, 2).with_cell_size(10.);
-        grid.accumulate_horizontal_flow_from_particle(Vec2::new(7.5, 12.5), Vec2::new(2., 1.));
+        grid.accumulate_horizontal_flow_from_particle(Vec2::new(7.5, 12.5), 2.);
 
-        assert_eq!(grid.cell_at(Vec2::new(5., 5.)).unwrap().horizontal_flow, Some(0.125));
-        assert_eq!(grid.cell_at(Vec2::new(5., 5.)).unwrap().sum_of_weights.x, 0.0625);
+        assert_eq!(
+            grid.cell_at(Vec2::new(5., 5.)).unwrap().horizontal_flow,
+            Some(0.125)
+        );
+        assert_eq!(
+            grid.cell_at(Vec2::new(5., 5.)).unwrap().sum_of_weights.x,
+            0.0625
+        );
 
-        assert_eq!(grid.cell_at(Vec2::new(15., 5.)).unwrap().horizontal_flow, Some(0.375));
-        assert_eq!(grid.cell_at(Vec2::new(15., 5.)).unwrap().sum_of_weights.x, 0.1875);
+        assert_eq!(
+            grid.cell_at(Vec2::new(15., 5.)).unwrap().horizontal_flow,
+            Some(0.375)
+        );
+        assert_eq!(
+            grid.cell_at(Vec2::new(15., 5.)).unwrap().sum_of_weights.x,
+            0.1875
+        );
 
-        assert_eq!(grid.cell_at(Vec2::new(15., 15.)).unwrap().horizontal_flow, Some(1.125));
-        assert_eq!(grid.cell_at(Vec2::new(15., 15.)).unwrap().sum_of_weights.x, 0.5625);
+        assert_eq!(
+            grid.cell_at(Vec2::new(15., 15.)).unwrap().horizontal_flow,
+            Some(1.125)
+        );
+        assert_eq!(
+            grid.cell_at(Vec2::new(15., 15.)).unwrap().sum_of_weights.x,
+            0.5625
+        );
 
-        assert_eq!(grid.cell_at(Vec2::new(5., 15.)).unwrap().horizontal_flow, Some(0.375));
-        assert_eq!(grid.cell_at(Vec2::new(5., 15.)).unwrap().sum_of_weights.x, 0.1875);
+        assert_eq!(
+            grid.cell_at(Vec2::new(5., 15.)).unwrap().horizontal_flow,
+            Some(0.375)
+        );
+        assert_eq!(
+            grid.cell_at(Vec2::new(5., 15.)).unwrap().sum_of_weights.x,
+            0.1875
+        );
     }
 
     #[test]
     fn accumulate_vertical_flow_from_particle_works() {
         let mut grid = StaggeredGrid::new(2, 2).with_cell_size(10.);
-        grid.accumulate_vertical_flow_from_particle(Vec2::new(12.5, 17.5), Vec2::new(1., 2.));
+        grid.accumulate_vertical_flow_from_particle(Vec2::new(12.5, 17.5), 2.);
 
-        assert_eq!(grid.cell_at(Vec2::new(5., 5.)).unwrap().vertical_flow, Some(0.125));
-        assert_eq!(grid.cell_at(Vec2::new(5., 5.)).unwrap().sum_of_weights.x, 0.0625);
+        assert_eq!(
+            grid.cell_at(Vec2::new(5., 5.)).unwrap().vertical_flow,
+            Some(0.125)
+        );
+        assert_eq!(
+            grid.cell_at(Vec2::new(5., 5.)).unwrap().sum_of_weights.x,
+            0.0625
+        );
 
-        assert_eq!(grid.cell_at(Vec2::new(15., 5.)).unwrap().vertical_flow, Some(0.375));
-        assert_eq!(grid.cell_at(Vec2::new(15., 5.)).unwrap().sum_of_weights.x, 0.1875);
+        assert_eq!(
+            grid.cell_at(Vec2::new(15., 5.)).unwrap().vertical_flow,
+            Some(0.375)
+        );
+        assert_eq!(
+            grid.cell_at(Vec2::new(15., 5.)).unwrap().sum_of_weights.x,
+            0.1875
+        );
 
-        assert_eq!(grid.cell_at(Vec2::new(15., 15.)).unwrap().vertical_flow, Some(1.125));
-        assert_eq!(grid.cell_at(Vec2::new(15., 15.)).unwrap().sum_of_weights.x, 0.5625);
+        assert_eq!(
+            grid.cell_at(Vec2::new(15., 15.)).unwrap().vertical_flow,
+            Some(1.125)
+        );
+        assert_eq!(
+            grid.cell_at(Vec2::new(15., 15.)).unwrap().sum_of_weights.x,
+            0.5625
+        );
 
-        assert_eq!(grid.cell_at(Vec2::new(5., 15.)).unwrap().vertical_flow, Some(0.375));
-        assert_eq!(grid.cell_at(Vec2::new(5., 15.)).unwrap().sum_of_weights.x, 0.1875);
+        assert_eq!(
+            grid.cell_at(Vec2::new(5., 15.)).unwrap().vertical_flow,
+            Some(0.375)
+        );
+        assert_eq!(
+            grid.cell_at(Vec2::new(5., 15.)).unwrap().sum_of_weights.x,
+            0.1875
+        );
     }
 }

@@ -4,21 +4,16 @@ mod systems;
 mod utils;
 
 use crate::flip::resources::Gravity;
-use crate::flip::systems::{
-    integrate_particles, spawn_liquid_container, transfer_particle_velocity_to_grid,
-};
+use crate::flip::systems::{integrate_particles, simulate_fluid, spawn_liquid_container};
 use bevy::prelude::*;
 
 pub struct FlipPlugin;
 
 impl Plugin for FlipPlugin {
     fn build(&self, app: &mut App) {
-        app.insert_resource(Gravity(Vec2::new(0., -100.)));
+        app.insert_resource(Gravity(Vec2::new(0., -10.)));
         app.add_systems(Startup, spawn_liquid_container);
-        app.add_systems(
-            Update,
-            (integrate_particles, transfer_particle_velocity_to_grid).chain(),
-        );
+        app.add_systems(Update, (integrate_particles, simulate_fluid).chain());
     }
 }
 

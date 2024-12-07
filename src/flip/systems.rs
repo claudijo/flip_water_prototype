@@ -1,6 +1,7 @@
-use crate::flip::components::{LiquidContainer, SizedParticle, StaggeredGrid, Velocity};
+use crate::flip::components::{Cell, LiquidContainer, SizedParticle, StaggeredGrid, Velocity};
 use crate::flip::resources::Gravity;
 use bevy::prelude::*;
+use bevy::utils::HashSet;
 
 pub fn spawn_liquid_container(
     mut commands: Commands,
@@ -13,13 +14,13 @@ pub fn spawn_liquid_container(
                 width: 200.,
                 height: 100.,
             },
-            StaggeredGrid::new(10, 5).with_cell_size(20.),
+            StaggeredGrid::new(20, 10).with_cell_size(10.),
             Mesh2d(meshes.add(Rectangle::new(200., 100.))),
             MeshMaterial2d(materials.add(Color::srgb(0.5, 0.5, 0.5))),
         ))
         .with_children(|parent| {
-            let rows = 3;
-            let cols = 5;
+            let rows = 9;
+            let cols = 21;
             let particle_size = 4.;
 
             for i in 0..rows * cols {
@@ -28,7 +29,7 @@ pub fn spawn_liquid_container(
 
                 parent.spawn((
                     Mesh2d(meshes.add(Rectangle::new(particle_size, particle_size))),
-                    MeshMaterial2d(materials.add(Color::srgb(0., 0., 1.))),
+                    MeshMaterial2d(materials.add(Color::srgb(1., 1., 1.))),
                     Transform::from_xyz(
                         (col - cols / 2) as f32 * particle_size * 2.,
                         (row - rows / 2) as f32 * particle_size * 2.,
@@ -55,52 +56,55 @@ pub fn integrate_particles(
     }
 }
 
-pub fn transfer_particle_velocity_to_grid(
+pub fn simulate_fluid(
     mut grid_query: Query<(&mut StaggeredGrid, &LiquidContainer, &Children)>,
-    particle_query: Query<(&Transform, &Velocity), With<SizedParticle>>,
+    mut particle_query: Query<(&Transform, &mut Velocity), With<SizedParticle>>,
 ) {
     for (mut grid, container, children) in &mut grid_query {
+        let offset = Vec3::new(container.width / 2., container.height / 2., 0.);
+
         grid.clear_cells();
 
-        let offset = Vec3::new(container.width / 2., container.height / 2., 0.);
+        let mut populated_cols_rows = HashSet::new();
+
+        // Transfer particle velocity to grid
 
         for &child in children {
             let Ok((transform, velocity)) = particle_query.get(child) else {
                 continue;
             };
+            let point = (transform.translation + offset).xy();
 
-            let adjusted_transform = transform.translation + offset;
+            if let Some(col_row) =
+                grid.col_row_from_cell_position(grid.cell_position_from_point(point))
+            {
+                populated_cols_rows.insert(col_row);
+            }
 
-            let col = (adjusted_transform.x / grid.cell_size) as usize;
-            let row = (adjusted_transform.y / grid.cell_size) as usize;
+            grid.accumulate_flow_from_particle(point, velocity.0);
+        }
 
-            let x = (adjusted_transform.x / grid.cell_size).floor();
-            let y = (adjusted_transform.y / grid.cell_size).floor();
+        for &(col, row) in populated_cols_rows.iter() {
+            grid.even_out_flow_for_cell(col, row);
+        }
 
-            let dx = adjusted_transform.x % grid.cell_size;
-            let dy = adjusted_transform.y % grid.cell_size;
+        // Make water particles incompressible
 
-            let half_cell_size = grid.cell_size / 2.;
+        for &(col, row) in populated_cols_rows.iter() {
+            grid.project_flow_for_cell(col, row, 40, 1.9);
+        }
 
-            // Transfer x component of particle velocity to grid
-            let (top, bottom) = if dy < half_cell_size {
-                (y + half_cell_size - dy, y - half_cell_size + dy)
-            } else {
-                (y + grid.cell_size - dy, y - dy)
+        // Transfer grid velocity to particles
+
+        for &child in children {
+            let Ok((transform, mut velocity)) = particle_query.get_mut(child) else {
+                continue;
             };
+            let point = (transform.translation + offset).xy();
 
-            let left = x - dx;
-            let right = x + grid.cell_size - dx;
-
-            // println!("{:?}, Cell at col {:?} row {:?} {:?}", a, cell_col, cell_row, grid.cells[cell_col][cell_row])
+            velocity.0.x = grid.weighted_horizontal_velocity_at_point(point);
+            velocity.0.y = grid.weighted_vertical_velocity_at_point(point);
         }
     }
 }
 
-pub fn make_grid_copy() {}
-
-pub fn make_grid_velocities_incompressible() {}
-
-pub fn transfer_grid_velocity_to_particles() {}
-
-pub fn add_velocity_changes_to_particles() {}
