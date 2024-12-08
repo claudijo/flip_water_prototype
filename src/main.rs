@@ -5,8 +5,10 @@
 #![allow(clippy::too_many_arguments, clippy::type_complexity)]
 
 mod flip;
+mod flop;
 
 use crate::flip::FlipPlugin;
+use crate::flop::FlopPlugin;
 use bevy::asset::AssetMetaCheck;
 use bevy::prelude::*;
 
@@ -20,7 +22,8 @@ fn main() {
             ..default()
         }))
         .add_systems(Startup, setup)
-        .add_plugins(FlipPlugin)
+        // .add_plugins(FlipPlugin)
+        .add_plugins(FlopPlugin)
         .run();
 }
 

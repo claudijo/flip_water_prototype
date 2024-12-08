@@ -107,4 +107,3 @@ pub fn simulate_fluid(
         }
     }
 }
-
