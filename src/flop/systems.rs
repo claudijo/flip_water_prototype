@@ -69,9 +69,29 @@ pub fn simulate_fluid(
 
         for child in children {
             if let Ok((mut velocity, mut transform)) = particles_qeury.get_mut(*child) {
-                grid.transfer_velocities(transform.translation.xy() + offset, velocity.0);
+                let point = transform.translation.xy() + offset;
+                grid.transfer_velocities(point, velocity.0);
+                println!("Velocity length {:?}", velocity.0.length());
             }
         }
+
+
+
+        grid.even_out_flow();
+
+        // grid.solve_incompressibility(100, 1.9);
+
+        // for child in children {
+        //     if let Ok((mut velocity, transform)) = particles_qeury.get_mut(*child) {
+        //         let point = transform.translation.xy() + offset;
+        //         if let Some(weighted_velocity) = grid.weighted_velocity_at_point(point) {
+        //             velocity.0 = weighted_velocity;
+        //         }
+        //     }
+        // }
+
+        println!("Total velocity in system {:?}", grid.total_velocity_in_system().length());
+
     }
 }
 
@@ -109,7 +129,7 @@ pub fn debug_cells(grid_query: Query<(&StaggeredGrid, &GlobalTransform)>, mut gi
 
                 // Flow velocity
 
-                let flow_scale = 1.;
+                let flow_scale = 2.;
 
                 if let Some(flow) = cell.horizontal_velocity {
                     let x = col as f32 * grid.cell_size + offset.x;
