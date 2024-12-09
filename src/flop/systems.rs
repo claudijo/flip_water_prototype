@@ -1,7 +1,7 @@
 use crate::flop::components::{StaggeredGrid, Velocity};
-use bevy::color::palettes::basic::{BLUE, YELLOW};
-use bevy::prelude::*;
 use crate::flop::resources::Gravity;
+use bevy::color::palettes::basic::{BLUE, GREEN, YELLOW};
+use bevy::prelude::*;
 
 pub fn spawn_liquid_container(
     mut commands: Commands,
@@ -20,6 +20,8 @@ pub fn spawn_liquid_container(
             Mesh2d(meshes.add(Rectangle::new(width, height))),
             MeshMaterial2d(materials.add(Color::srgb(0.5, 0.5, 0.5))),
             StaggeredGrid::new(cols, rows, cell_size).with_border_cells(),
+            Transform::from_xyz(0., 0., -1.),
+            Visibility::default(),
         ))
         .with_children(|parent| {
             let particle_count = 120;
@@ -35,8 +37,8 @@ pub fn spawn_liquid_container(
                 parent.spawn((
                     Mesh2d(meshes.add(Rectangle::new(particle_size, particle_size))),
                     MeshMaterial2d(materials.add(Color::srgb(1., 1., 1.))),
-                    Transform::from_xyz(x, y, 5.),
-                    Velocity::default(),
+                    Transform::from_xyz(x, y, 1.),
+                    Velocity(Vec2::new(-10., 0.)),
                 ));
             }
         });
@@ -53,7 +55,27 @@ pub fn integrate_particles(
     }
 }
 
-pub fn debug_cells(mut grid_query: Query<(&StaggeredGrid, &GlobalTransform)>, mut gizmos: Gizmos) {
+pub fn simulate_fluid(
+    mut grid_query: Query<(&mut StaggeredGrid, &GlobalTransform, &Children)>,
+    mut particles_qeury: Query<(&mut Velocity, &mut Transform)>,
+) {
+    for (mut grid, global_transform, children) in &mut grid_query {
+        let offset = Vec2::new(
+            grid.cols as f32 * grid.cell_size / 2.,
+            grid.rows as f32 * grid.cell_size / 2.,
+        );
+
+        grid.clear_cells();
+
+        for child in children {
+            if let Ok((mut velocity, mut transform)) = particles_qeury.get_mut(*child) {
+                grid.transfer_velocities(transform.translation.xy() + offset, velocity.0);
+            }
+        }
+    }
+}
+
+pub fn debug_cells(grid_query: Query<(&StaggeredGrid, &GlobalTransform)>, mut gizmos: Gizmos) {
     for (grid, global_transform) in &grid_query {
         let offset = global_transform.translation().xy()
             - Vec2::new(
@@ -63,7 +85,13 @@ pub fn debug_cells(mut grid_query: Query<(&StaggeredGrid, &GlobalTransform)>, mu
 
         for row in 0..grid.rows {
             for col in 0..grid.cols {
-                let (color, z) = if grid.cell_at(col, row).divergence_scale == 0. {
+                let Some(cell) = grid.cell_at(col as i32, row as i32) else {
+                    continue;
+                };
+
+                // Cell type
+
+                let (color, z) = if cell.divergence_scale == 0. {
                     (YELLOW, 5.)
                 } else {
                     (BLUE, 4.)
@@ -78,8 +106,25 @@ pub fn debug_cells(mut grid_query: Query<(&StaggeredGrid, &GlobalTransform)>, mu
                     Vec2::splat(grid.cell_size),
                     color,
                 );
+
+                // Flow velocity
+
+                let flow_scale = 0.1;
+
+                if let Some(flow) = cell.horizontal_velocity {
+                    let x = col as f32 * grid.cell_size + offset.x;
+                    let y = row as f32 * grid.cell_size + offset.y + grid.cell_size / 2.;
+                    let start = Vec2::new(x, y);
+                    gizmos.arrow_2d(start, start + Vec2::X * flow * flow_scale, GREEN);
+                }
+
+                if let Some(flow) = cell.vertical_velocity {
+                    let x = col as f32 * grid.cell_size + offset.x + grid.cell_size / 2.;
+                    let y = row as f32 * grid.cell_size + offset.y ;
+                    let start = Vec2::new(x, y);
+                    gizmos.arrow_2d(start, start + Vec2::Y * flow * flow_scale, GREEN);
+                }
             }
         }
     }
 }
-
