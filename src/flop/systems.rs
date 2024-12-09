@@ -1,6 +1,6 @@
-use crate::flop::components::{StaggeredGrid, Velocity};
+use crate::flop::components::{CellType, StaggeredGrid, Velocity};
 use crate::flop::resources::Gravity;
-use bevy::color::palettes::basic::{BLUE, GREEN, YELLOW};
+use bevy::color::palettes::basic::{BLUE, GREEN, RED, YELLOW};
 use bevy::prelude::*;
 
 pub fn spawn_liquid_container(
@@ -77,7 +77,7 @@ pub fn simulate_fluid(
 
 
 
-        grid.even_out_flow();
+        // grid.even_out_flow();
 
         // grid.solve_incompressibility(100, 1.9);
 
@@ -111,10 +111,10 @@ pub fn debug_cells(grid_query: Query<(&StaggeredGrid, &GlobalTransform)>, mut gi
 
                 // Cell type
 
-                let (color, z) = if cell.divergence_scale == 0. {
-                    (YELLOW, 5.)
-                } else {
-                    (BLUE, 4.)
+                let (color, z) = match cell.cell_type {
+                    CellType::Air =>  (YELLOW, 4.),
+                    CellType::Water =>  (BLUE, 6.),
+                    CellType::Solid =>  (RED, 5.),
                 };
 
                 gizmos.rect(

@@ -1,8 +1,16 @@
+use std::cmp::PartialEq;
 use bevy::prelude::*;
 
 #[derive(Component, Default)]
 #[require(Transform)]
 pub struct Velocity(pub Vec2);
+
+#[derive(Clone, Debug, PartialEq)]
+pub enum CellType {
+    Air,
+    Water,
+    Solid,
+}
 
 #[derive(Clone, Debug)]
 pub struct Cell {
@@ -11,6 +19,7 @@ pub struct Cell {
     pub sum_vertical_velocity_weights: f32,
     pub sum_horizontal_velocity_weights: f32,
     pub divergence_scale: f32,
+    pub cell_type: CellType,
 }
 
 impl Default for Cell {
@@ -21,6 +30,7 @@ impl Default for Cell {
             sum_vertical_velocity_weights: 0.,
             sum_horizontal_velocity_weights: 0.,
             divergence_scale: 1.0,
+            cell_type: CellType::Air,
         }
     }
 }
@@ -47,9 +57,10 @@ impl StaggeredGrid {
         for row in 0..self.rows {
             for col in 0..self.cols {
                 if row == 0 || row == self.rows - 1 || col == 0 || col == self.cols - 1 {
-                    self.cell_at_mut(col as i32, row as i32)
-                        .unwrap()
-                        .divergence_scale = 0.;
+                    if let Some(mut cell) = self.cell_at_mut(col as i32, row as i32) {
+                        cell.divergence_scale = 0.;
+                        cell.cell_type = CellType::Solid;
+                    }
                 }
             }
         }
@@ -109,6 +120,10 @@ impl StaggeredGrid {
             cell.vertical_velocity = None;
             cell.sum_vertical_velocity_weights = 0.;
             cell.sum_horizontal_velocity_weights = 0.;
+
+            if cell.cell_type == CellType::Water {
+                cell.cell_type = CellType::Air;
+            }
         });
     }
 
@@ -120,6 +135,13 @@ impl StaggeredGrid {
             || point.y > self.rows as f32 * self.cell_size
         {
             return;
+        }
+
+        let (col, row) = self.col_row_for_point(point);
+        if let Some(mut cell) = self.cell_at_mut(col, row) {
+            if cell.cell_type == CellType::Air {
+                cell.cell_type = CellType::Water;
+            }
         }
 
         self.transfer_horizontal_velocity(point, velocity);
