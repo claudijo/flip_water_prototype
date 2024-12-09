@@ -24,10 +24,10 @@ pub fn spawn_liquid_container(
             Visibility::default(),
         ))
         .with_children(|parent| {
-            let particle_count = 120;
-            let particle_per_row = 15;
+            let particle_count = 1;
+            let particle_per_row = 5;
             let particle_size = 4.;
-            let particle_spacing = particle_size * 4.;
+            let particle_spacing = particle_size * 5.;
 
             for i in 0..particle_count {
                 let x = (i % particle_per_row) as f32 * particle_spacing
@@ -38,7 +38,7 @@ pub fn spawn_liquid_container(
                     Mesh2d(meshes.add(Rectangle::new(particle_size, particle_size))),
                     MeshMaterial2d(materials.add(Color::srgb(1., 1., 1.))),
                     Transform::from_xyz(x, y, 1.),
-                    Velocity(Vec2::new(-10., 0.)),
+                    Velocity(Vec2::new(50., 0.)),
                 ));
             }
         });
@@ -109,7 +109,7 @@ pub fn debug_cells(grid_query: Query<(&StaggeredGrid, &GlobalTransform)>, mut gi
 
                 // Flow velocity
 
-                let flow_scale = 0.1;
+                let flow_scale = 1.;
 
                 if let Some(flow) = cell.horizontal_velocity {
                     let x = col as f32 * grid.cell_size + offset.x;
@@ -120,7 +120,7 @@ pub fn debug_cells(grid_query: Query<(&StaggeredGrid, &GlobalTransform)>, mut gi
 
                 if let Some(flow) = cell.vertical_velocity {
                     let x = col as f32 * grid.cell_size + offset.x + grid.cell_size / 2.;
-                    let y = row as f32 * grid.cell_size + offset.y ;
+                    let y = row as f32 * grid.cell_size + offset.y;
                     let start = Vec2::new(x, y);
                     gizmos.arrow_2d(start, start + Vec2::Y * flow * flow_scale, GREEN);
                 }

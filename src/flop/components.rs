@@ -58,7 +58,7 @@ impl StaggeredGrid {
     }
 
     pub fn cell_at(&self, col: i32, row: i32) -> Option<&Cell> {
-        if col < 0 || row < 0 {
+        if col < 0 || row < 0 || col > self.cols as i32 - 1 || row > self.rows as i32 - 1 {
             return None;
         }
 
@@ -66,7 +66,7 @@ impl StaggeredGrid {
     }
 
     pub fn cell_at_mut(&mut self, col: i32, row: i32) -> Option<&mut Cell> {
-        if col < 0 || row < 0 {
+        if col < 0 || row < 0 || col > self.cols as i32 - 1 || row > self.rows as i32 - 1 {
             return None;
         }
 
@@ -82,10 +82,10 @@ impl StaggeredGrid {
         let one_minus_delta_y_by_size = 1. - delta_y_by_size;
 
         [
-            (one_minus_delta_x_by_size * one_minus_delta_y_by_size).max(0.),
-            (delta_x_by_size * one_minus_delta_y_by_size).max(0.),
-            (delta_x_by_size * delta_y_by_size).max(0.),
-            (one_minus_delta_x_by_size * delta_y_by_size).max(0.),
+            (one_minus_delta_x_by_size * one_minus_delta_y_by_size),
+            (delta_x_by_size * one_minus_delta_y_by_size),
+            (delta_x_by_size * delta_y_by_size),
+            (one_minus_delta_x_by_size * delta_y_by_size),
         ]
     }
 
@@ -98,8 +98,45 @@ impl StaggeredGrid {
         });
     }
 
-    pub fn col_row_for_point(&self, point: Vec2) -> (i32, i32) {
-        // Note that casting from a float to an integer will round the float towards zero, which
+    pub fn transfer_velocities(&mut self, point: Vec2, velocity: Vec2) {
+        // Ignore points outside grid
+        if point.x < 0. || point.y < 0. || point.x > self.cols as f32 * self.cell_size || point.y > self.rows as f32 * self.cell_size {
+            return;
+        }
+
+        self.transfer_horizontal_velocity(point, velocity);
+        self.transfer_vertical_velocity(point, velocity);
+    }
+
+    pub fn solve_incompressibility(&mut self) {
+        for col in 0..self.cols {
+            for row in 0..self.rows {}
+        }
+    }
+
+    fn divergence_for_cell(&self, col: i32, row: i32) -> Option<f32> {
+        // let cell = self.cell_at(col, row)?;
+        //
+        // if  cell.horizontal_velocity.is_none() && cell.vertical_velocity.is_none() {
+        //     return None;
+        // }
+        //
+        // self.cell_at(col + 1, row)
+        //
+        // let horizontal_velocity = cell.horizontal_velocity;
+        // let vertical_velocity = cell.vertical_velocity;
+        //
+        // let right_cell = self.cell_at(col + 1, row)
+        //
+        //
+        // let d = self.cell_at(col + 1, row)?.horizontal_velocity.unwrap_or(0.) - self.cell_at(col, row)?.horizontal_velocity.unwrap_or(0.) + ;
+        //
+
+        None
+    }
+
+    fn col_row_for_point(&self, point: Vec2) -> (i32, i32) {
+        // Note that casting from a float to an integer will round (negative) float towards zero, which
         // could be a foot gun if we accept negative point coordinates
         (
             (point.x / self.cell_size) as i32,
@@ -107,7 +144,7 @@ impl StaggeredGrid {
         )
     }
 
-    pub fn grid_local_point(&self, point: Vec2) -> Vec2 {
+    fn grid_local_point(&self, point: Vec2) -> Vec2 {
         Vec2::new(point.x % self.cell_size, point.y % self.cell_size)
     }
 
@@ -160,20 +197,6 @@ impl StaggeredGrid {
         self.update_vertical_velocity(col + 1, row, velocity.y, weight[1]);
         self.update_vertical_velocity(col + 1, row + 1, velocity.y, weight[2]);
         self.update_vertical_velocity(col, row + 1, velocity.y, weight[3]);
-    }
-
-    pub fn transfer_velocities(&mut self, point: Vec2, velocity: Vec2) {
-        // Don't consider points outside grid
-        if point.x < 0.
-            || point.y < 0.
-            || point.x > self.rows as f32 * self.cell_size
-            || point.y > self.cols as f32 * self.cell_size
-        {
-            return;
-        }
-
-        self.transfer_horizontal_velocity(point, velocity);
-        self.transfer_vertical_velocity(point, velocity);
     }
 }
 
