@@ -6,6 +6,7 @@
 
 mod flip;
 mod flop;
+mod pic_flip;
 
 use crate::flip::FlipPlugin;
 use crate::flop::FlopPlugin;
