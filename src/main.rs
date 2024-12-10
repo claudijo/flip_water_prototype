@@ -12,6 +12,7 @@ use crate::flip::FlipPlugin;
 use crate::flop::FlopPlugin;
 use bevy::asset::AssetMetaCheck;
 use bevy::prelude::*;
+use crate::pic_flip::PicFlipPlugin;
 
 fn main() {
     App::new()
@@ -24,7 +25,8 @@ fn main() {
         }))
         .add_systems(Startup, setup)
         // .add_plugins(FlipPlugin)
-        .add_plugins(FlopPlugin)
+        // .add_plugins(FlopPlugin)
+        .add_plugins(PicFlipPlugin)
         .run();
 }
 
