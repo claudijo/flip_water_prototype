@@ -1,7 +1,7 @@
 pub struct Grid<T> {
     cols: usize,
     rows: usize,
-    data: Vec<T>
+    data: Vec<T>,
 }
 
 impl<T: Default + Clone> Grid<T> {
@@ -9,7 +9,7 @@ impl<T: Default + Clone> Grid<T> {
         Self {
             cols,
             rows,
-            data: vec![T::default(); cols * rows]
+            data: vec![T::default(); cols * rows],
         }
     }
 
