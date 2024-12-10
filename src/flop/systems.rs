@@ -1,6 +1,6 @@
 use crate::flop::components::{CellType, StaggeredGrid, Velocity};
 use crate::flop::resources::Gravity;
-use bevy::color::palettes::basic::{BLUE, GREEN, RED, YELLOW};
+use bevy::color::palettes::basic::{AQUA, BLUE, MAROON, SILVER};
 use bevy::prelude::*;
 
 pub fn spawn_liquid_container(
@@ -70,12 +70,17 @@ pub fn simulate_fluid(
         for child in children {
             if let Ok((mut velocity, mut transform)) = particles_qeury.get_mut(*child) {
                 let point = transform.translation.xy() + offset;
+                grid.make_water_cell(point);
+            }
+        }
+
+        for child in children {
+            if let Ok((mut velocity, mut transform)) = particles_qeury.get_mut(*child) {
+                let point = transform.translation.xy() + offset;
                 grid.transfer_velocities(point, velocity.0);
                 println!("Velocity length {:?}", velocity.0.length());
             }
         }
-
-
 
         // grid.even_out_flow();
 
@@ -90,8 +95,10 @@ pub fn simulate_fluid(
         //     }
         // }
 
-        println!("Total velocity in system {:?}", grid.total_velocity_in_system().length());
-
+        println!(
+            "Total velocity in system {:?}",
+            grid.total_velocity_in_system().length()
+        );
     }
 }
 
@@ -112,9 +119,9 @@ pub fn debug_cells(grid_query: Query<(&StaggeredGrid, &GlobalTransform)>, mut gi
                 // Cell type
 
                 let (color, z) = match cell.cell_type {
-                    CellType::Air =>  (YELLOW, 4.),
-                    CellType::Water =>  (BLUE, 6.),
-                    CellType::Solid =>  (RED, 5.),
+                    CellType::Air => (SILVER, 4.),
+                    CellType::Water => (AQUA, 6.),
+                    CellType::Solid => (MAROON, 5.),
                 };
 
                 gizmos.rect(
@@ -135,14 +142,14 @@ pub fn debug_cells(grid_query: Query<(&StaggeredGrid, &GlobalTransform)>, mut gi
                     let x = col as f32 * grid.cell_size + offset.x;
                     let y = row as f32 * grid.cell_size + offset.y + grid.cell_size / 2.;
                     let start = Vec2::new(x, y);
-                    gizmos.arrow_2d(start, start + Vec2::X * flow * flow_scale, GREEN);
+                    gizmos.arrow_2d(start, start + Vec2::X * flow * flow_scale, BLUE);
                 }
 
                 if let Some(flow) = cell.vertical_velocity {
                     let x = col as f32 * grid.cell_size + offset.x + grid.cell_size / 2.;
                     let y = row as f32 * grid.cell_size + offset.y;
                     let start = Vec2::new(x, y);
-                    gizmos.arrow_2d(start, start + Vec2::Y * flow * flow_scale, GREEN);
+                    gizmos.arrow_2d(start, start + Vec2::Y * flow * flow_scale, BLUE);
                 }
             }
         }

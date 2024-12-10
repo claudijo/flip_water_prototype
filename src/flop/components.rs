@@ -1,5 +1,5 @@
-use std::cmp::PartialEq;
 use bevy::prelude::*;
+use std::cmp::PartialEq;
 
 #[derive(Component, Default)]
 #[require(Transform)]
@@ -127,6 +127,15 @@ impl StaggeredGrid {
         });
     }
 
+    pub fn make_water_cell(&mut self, point: Vec2) {
+        let (col, row) = self.col_row_for_point(point);
+        if let Some(mut cell) = self.cell_at_mut(col, row) {
+            if cell.cell_type == CellType::Air {
+                cell.cell_type = CellType::Water;
+            }
+        }
+    }
+
     pub fn transfer_velocities(&mut self, point: Vec2, velocity: Vec2) {
         // Ignore points outside grid
         if point.x < 0.
@@ -135,13 +144,6 @@ impl StaggeredGrid {
             || point.y > self.rows as f32 * self.cell_size
         {
             return;
-        }
-
-        let (col, row) = self.col_row_for_point(point);
-        if let Some(mut cell) = self.cell_at_mut(col, row) {
-            if cell.cell_type == CellType::Air {
-                cell.cell_type = CellType::Water;
-            }
         }
 
         self.transfer_horizontal_velocity(point, velocity);
@@ -170,36 +172,24 @@ impl StaggeredGrid {
 
                     if let Some(mut cell) = self.cell_at_mut(i, j) {
                         let horizontal_velocity = cell.horizontal_velocity.unwrap_or(0.);
-                        cell.horizontal_velocity = Some(
-                            horizontal_velocity
-                                + divergence * a
-                                / divergence_scale_sum,
-                        );
+                        cell.horizontal_velocity =
+                            Some(horizontal_velocity + divergence * a / divergence_scale_sum);
 
                         let vertical_velocity = cell.vertical_velocity.unwrap_or(0.);
-                        cell.vertical_velocity = Some(
-                            vertical_velocity
-                                + divergence * b
-                                / divergence_scale_sum,
-                        );
+                        cell.vertical_velocity =
+                            Some(vertical_velocity + divergence * b / divergence_scale_sum);
                     }
 
                     if let Some(cell) = self.cell_at_mut(i + 1, j) {
                         let horizontal_velocity = cell.horizontal_velocity.unwrap_or(0.);
-                        cell.horizontal_velocity = Some(
-                            horizontal_velocity
-                                - divergence * c
-                                / divergence_scale_sum,
-                        );
+                        cell.horizontal_velocity =
+                            Some(horizontal_velocity - divergence * c / divergence_scale_sum);
                     }
 
                     if let Some(cell) = self.cell_at_mut(i, j + 1) {
                         let vertical_velocity = cell.vertical_velocity.unwrap_or(0.);
-                        cell.vertical_velocity = Some(
-                            vertical_velocity
-                                - divergence * d
-                                / divergence_scale_sum,
-                        );
+                        cell.vertical_velocity =
+                            Some(vertical_velocity - divergence * d / divergence_scale_sum);
                     }
                 }
             }
@@ -209,10 +199,10 @@ impl StaggeredGrid {
     pub fn even_out_flow(&mut self) {
         for col in 0..self.cols {
             for row in 0..self.rows {
-
                 if let Some(cell) = self.cell_at_mut(col as i32, row as i32) {
                     if let Some(flow) = cell.horizontal_velocity {
-                        cell.horizontal_velocity = Some(flow / cell.sum_horizontal_velocity_weights);
+                        cell.horizontal_velocity =
+                            Some(flow / cell.sum_horizontal_velocity_weights);
                     }
 
                     if let Some(flow) = cell.vertical_velocity {
@@ -242,7 +232,7 @@ impl StaggeredGrid {
 
         Some(Vec2::new(
             horizontal_velocity.unwrap_or(0.),
-            vertical_velocity.unwrap_or(0.)
+            vertical_velocity.unwrap_or(0.),
         ))
     }
 
@@ -384,6 +374,10 @@ impl StaggeredGrid {
         weight: f32,
     ) {
         if let Some(mut cell) = self.cell_at_mut(col, row) {
+            if cell.cell_type != CellType::Water {
+                return;
+            }
+
             let flow = cell.horizontal_velocity.unwrap_or(0.);
             cell.horizontal_velocity = Some(flow + horizontal_velocity * weight);
             cell.sum_horizontal_velocity_weights += weight;
@@ -398,6 +392,10 @@ impl StaggeredGrid {
         weight: f32,
     ) {
         if let Some(mut cell) = self.cell_at_mut(col, row) {
+            if cell.cell_type != CellType::Water {
+                return;
+            }
+
             let flow = cell.vertical_velocity.unwrap_or(0.);
             cell.vertical_velocity = Some(flow + vertical_velocity * weight);
             cell.sum_vertical_velocity_weights += weight;
