@@ -1,5 +1,7 @@
 use crate::pic_flip::resources::Gravity;
-use crate::pic_flip::systems::{debug_simulation, integrate_particles, spawn_fluid_container};
+use crate::pic_flip::systems::{
+    debug_simulation, integrate_particles, simulate_fluid_mechanics, spawn_fluid_container,
+};
 use bevy::prelude::*;
 
 mod components;
@@ -14,6 +16,14 @@ impl Plugin for PicFlipPlugin {
     fn build(&self, app: &mut App) {
         app.insert_resource(Gravity(Vec2::new(0., -10.)));
         app.add_systems(Startup, spawn_fluid_container);
-        app.add_systems(Update, (integrate_particles, debug_simulation).chain());
+        app.add_systems(
+            Update,
+            (
+                integrate_particles,
+                simulate_fluid_mechanics,
+                debug_simulation,
+            )
+                .chain(),
+        );
     }
 }

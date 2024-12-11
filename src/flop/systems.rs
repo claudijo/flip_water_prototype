@@ -78,7 +78,6 @@ pub fn simulate_fluid(
             if let Ok((mut velocity, mut transform)) = particles_qeury.get_mut(*child) {
                 let point = transform.translation.xy() + offset;
                 grid.transfer_velocities(point, velocity.0);
-                println!("Velocity length {:?}", velocity.0.length());
             }
         }
 
@@ -94,11 +93,6 @@ pub fn simulate_fluid(
         //         }
         //     }
         // }
-
-        println!(
-            "Total velocity in system {:?}",
-            grid.total_velocity_in_system().length()
-        );
     }
 }
 

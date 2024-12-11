@@ -2,7 +2,7 @@ use bevy::prelude::*;
 
 use crate::pic_flip::grid::Grid;
 
-#[derive(Clone, Default)]
+#[derive(Debug, Clone, Default)]
 pub enum CellType {
     #[default]
     EMPTY,
@@ -11,15 +11,15 @@ pub enum CellType {
 }
 
 pub struct StaggeredGrid {
-    cols: usize,
-    rows: usize,
+    pub cols: usize,
+    pub rows: usize,
     pub offset: Vec2,
-    pressures: Grid<f32>,
-    horizontal_velocities: Grid<f32>,
-    vertical_velocities: Grid<f32>,
-    sum_vertical_weights: Grid<f32>,
-    sum_horizontal_weights: Grid<f32>,
-    cell_types: Grid<CellType>,
+    pub pressures: Grid<f32>,
+    pub horizontal_velocities: Grid<f32>,
+    pub vertical_velocities: Grid<f32>,
+    pub sum_vertical_weights: Grid<f32>,
+    pub sum_horizontal_weights: Grid<f32>,
+    pub cell_types: Grid<CellType>,
     pub cell_spacing: f32,
 }
 
@@ -39,14 +39,6 @@ impl StaggeredGrid {
         }
     }
 
-    pub fn cols(&self) -> usize {
-        self.cols
-    }
-
-    pub fn rows(&self) -> usize {
-        self.rows
-    }
-
     pub fn horizontal_velocity(&self, i: i32, j: i32) -> Option<&f32> {
         self.horizontal_velocities.get_at(i, j)
     }
@@ -59,7 +51,7 @@ impl StaggeredGrid {
         self.cell_types.get_at(i, j)
     }
 
-    pub fn splat_velocity(&mut self, point: Vec2, velocity: Vec2) {
+    pub fn splat_velocity(&mut self, velocity: Vec2, point: Vec2) {
         self.splat_horizontal_velocity(velocity.x, point);
         self.splat_vertical_velocity(velocity.y, point);
     }
@@ -85,7 +77,7 @@ impl StaggeredGrid {
     }
 
     fn corner_weights(&self, point: Vec2) -> [f32; 4] {
-        let local_point = self.cell_local_point(point);
+        let local_point = self.weights(point);
 
         let x_over_spacing = local_point.x / self.cell_spacing;
         let y_over_spacing = local_point.y / self.cell_spacing;
@@ -103,6 +95,7 @@ impl StaggeredGrid {
     fn splat_horizontal_velocity(&mut self, velocity_component: f32, point: Vec2) {
         let shifted_point = point - Vec2::new(0., self.cell_spacing / 2.);
         let weights = self.corner_weights(shifted_point);
+
         let (i, j) = self.floor(shifted_point);
 
         self.update_horizontal_velocity(i, j, velocity_component, weights[0]);
@@ -127,14 +120,18 @@ impl StaggeredGrid {
         (i as i32, j as i32)
     }
 
-    fn cell_local_point(&self, point: Vec2) -> Vec2 {
-        Vec2::new(point.x % self.cell_spacing, point.y % self.cell_spacing)
+    fn weights(&self, point: Vec2) -> Vec2 {
+        Vec2::new(
+            (point.x - self.offset.x) % self.cell_spacing,
+            (point.y - self.offset.y) % self.cell_spacing,
+        )
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use bevy::math::vec2;
 
     #[test]
     fn grid_indices_for_point() {
@@ -146,13 +143,61 @@ mod tests {
 
     fn barycentric_weights_for_point() {
         let grid = StaggeredGrid::new(4, 4, 10., Vec2::splat(-20.));
+        assert_eq!(grid.weights(Vec2::new(-20., 10.)), Vec2::new(0., 0.));
+        assert_eq!(grid.weights(Vec2::new(-18., 14.)), Vec2::new(2., 4.));
+    }
+
+    #[test]
+    fn corner_weights_for_point() {
+        let grid = StaggeredGrid::new(2, 2, 10., Vec2::ZERO);
         assert_eq!(
-            grid.cell_local_point(Vec2::new(-20., 10.)),
-            Vec2::new(0., 0.)
+            grid.corner_weights(vec2(7.5, 2.5)),
+            [0.1875, 0.5625, 0.1875, 0.0625]
+        );
+
+        assert_eq!(
+            grid.corner_weights(vec2(12.5, 17.5)),
+            [0.1875, 0.0625, 0.1875, 0.5625,]
+        );
+    }
+
+    #[test]
+    fn splatting_velocity() {
+        let mut grid = StaggeredGrid::new(3, 3, 10., Vec2::new(-15., -15.));
+        grid.splat_velocity(Vec2::new(10., -20.), Vec2::new(2.5, -2.5));
+
+        assert_eq!(
+            *grid.horizontal_velocities.get_at(1, 0).unwrap(),
+            0.0625 * 10.
         );
         assert_eq!(
-            grid.cell_local_point(Vec2::new(-18., 14.)),
-            Vec2::new(2., 4.)
+            *grid.horizontal_velocities.get_at(2, 0).unwrap(),
+            0.1875 * 10.
+        );
+        assert_eq!(
+            *grid.horizontal_velocities.get_at(2, 1).unwrap(),
+            0.5625 * 10.
+        );
+        assert_eq!(
+            *grid.horizontal_velocities.get_at(1, 1).unwrap(),
+            0.1875 * 10.
+        );
+
+        assert_eq!(
+            *grid.vertical_velocities.get_at(1, 1).unwrap(),
+            0.5625 * -20.
+        );
+        assert_eq!(
+            *grid.vertical_velocities.get_at(2, 1).unwrap(),
+            0.1875 * -20.
+        );
+        assert_eq!(
+            *grid.vertical_velocities.get_at(2, 2).unwrap(),
+            0.0625 * -20.
+        );
+        assert_eq!(
+            *grid.vertical_velocities.get_at(1, 2).unwrap(),
+            0.1875 * -20.
         );
     }
 }
