@@ -39,6 +39,20 @@ impl StaggeredGrid {
         }
     }
 
+    pub fn with_boundary_cells(mut self) -> Self {
+        for i in 0..self.cols {
+            for j in 0..self.rows {
+                if i == 0 || i == self.cols - 1 || j == 0 || j == self.rows - 1 {
+                    if let Some(mut cell_type) = self.cell_types.get_at_mut(i as i32, j as i32) {
+                       *cell_type = CellType::SOLID;
+                    }
+                }
+            }
+        }
+
+        self
+    }
+
     pub fn horizontal_velocity(&self, i: i32, j: i32) -> Option<&f32> {
         self.horizontal_velocities.get_at(i, j)
     }

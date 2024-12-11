@@ -25,7 +25,7 @@ pub fn spawn_fluid_container(
                 rows,
                 cell_spacing,
                 Vec2::new(-width / 2., -height / 2.),
-            )),
+            ).with_boundary_cells()),
             Transform::from_xyz(0., 0., -1.),
             Visibility::default(),
         ))
@@ -33,7 +33,7 @@ pub fn spawn_fluid_container(
             let particle_count = 9;
             let particle_per_row = 3;
             let particle_size = 4.;
-            let particle_spacing = 8.;
+            let particle_spacing = 12.;
 
             for i in 0..particle_count {
                 let x = (i % particle_per_row) as f32 * particle_spacing
@@ -44,7 +44,7 @@ pub fn spawn_fluid_container(
                     Mesh2d(meshes.add(Rectangle::new(particle_size, particle_size))),
                     MeshMaterial2d(materials.add(Color::srgb(1., 1., 1.))),
                     Transform::from_xyz(x, y, 10.),
-                    Velocity(Vec2::new(20., 20.)),
+                    Velocity(Vec2::new(20., 0.)),
                 ));
             }
         });
@@ -56,7 +56,7 @@ pub fn integrate_particles(
     time: Res<Time>,
 ) {
     for (mut velocity, mut transform) in &mut particle_query {
-        // velocity.0 += gravity.0 * time.delta_secs();
+        velocity.0 += gravity.0 * time.delta_secs();
         transform.translation += (velocity.0 * time.delta_secs()).extend(0.);
     }
 }
