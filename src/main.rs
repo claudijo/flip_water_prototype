@@ -10,9 +10,9 @@ mod pic_flip;
 
 use crate::flip::FlipPlugin;
 use crate::flop::FlopPlugin;
+use crate::pic_flip::PicFlipPlugin;
 use bevy::asset::AssetMetaCheck;
 use bevy::prelude::*;
-use crate::pic_flip::PicFlipPlugin;
 
 fn main() {
     App::new()

@@ -13,14 +13,14 @@ pub enum CellType {
 pub struct StaggeredGrid {
     cols: usize,
     rows: usize,
-    offset: Vec2,
+    pub offset: Vec2,
     pressures: Grid<f32>,
     horizontal_velocities: Grid<f32>,
     vertical_velocities: Grid<f32>,
     sum_vertical_weights: Grid<f32>,
     sum_horizontal_weights: Grid<f32>,
-    cell_type: Grid<CellType>,
-    cell_spacing: f32,
+    cell_types: Grid<CellType>,
+    pub cell_spacing: f32,
 }
 
 impl StaggeredGrid {
@@ -28,7 +28,7 @@ impl StaggeredGrid {
         Self {
             cols,
             rows,
-            cell_type: Grid::new(cols, rows),
+            cell_types: Grid::new(cols, rows),
             pressures: Grid::new(cols, rows),
             horizontal_velocities: Grid::new(cols + 1, rows),
             sum_horizontal_weights: Grid::new(cols + 1, rows),
@@ -37,6 +37,26 @@ impl StaggeredGrid {
             cell_spacing: spacing,
             offset,
         }
+    }
+
+    pub fn cols(&self) -> usize {
+        self.cols
+    }
+
+    pub fn rows(&self) -> usize {
+        self.rows
+    }
+
+    pub fn horizontal_velocity(&self, i: i32, j: i32) -> Option<&f32> {
+        self.horizontal_velocities.get_at(i, j)
+    }
+
+    pub fn vertical_velocity(&self, i: i32, j: i32) -> Option<&f32> {
+        self.vertical_velocities.get_at(i, j)
+    }
+
+    pub fn cell_type(&self, i: i32, j: i32) -> Option<&CellType> {
+        self.cell_types.get_at(i, j)
     }
 
     pub fn splat_velocity(&mut self, point: Vec2, velocity: Vec2) {
