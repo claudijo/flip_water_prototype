@@ -1,3 +1,4 @@
+use std::cmp::PartialEq;
 use crate::pic_flip::staggered_grid::{CellType, StaggeredGrid};
 use bevy::prelude::*;
 
@@ -43,10 +44,19 @@ impl FluidSimulator {
         self.0.vertical_velocities.reset();
         self.0.sum_horizontal_weights.reset();
         self.0.sum_vertical_weights.reset();
+
+        // Reset fluid cells
+        for i in 0..(self.0.cell_types.cols() * self.0.cell_types.rows()){
+            if let Some(mut cell_type) = self.0.cell_types.get_mut(i) {
+                if *cell_type == CellType::FLUID {
+                    *cell_type = CellType::EMPTY;
+                }
+            }
+        }
     }
 
     pub fn splat_velocity(&mut self, velocity: Vec2, point: Vec2) {
-        self.0.splat_velocity(velocity, point);
+        self.0.particles_to_grid(velocity, point);
     }
 
     pub fn normalize_velocities(&mut self) {

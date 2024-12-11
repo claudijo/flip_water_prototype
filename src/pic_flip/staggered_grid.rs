@@ -2,7 +2,7 @@ use bevy::prelude::*;
 
 use crate::pic_flip::grid::Grid;
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, Eq, PartialEq)]
 pub enum CellType {
     #[default]
     EMPTY,
@@ -65,7 +65,12 @@ impl StaggeredGrid {
         self.cell_types.get_at(i, j)
     }
 
-    pub fn splat_velocity(&mut self, velocity: Vec2, point: Vec2) {
+    pub fn particles_to_grid(&mut self, velocity: Vec2, point: Vec2) {
+        let (i, j) = self.floor(point);
+        if let Some(mut cell_type) = self.cell_types.get_at_mut(i, j) {
+          *cell_type = CellType::FLUID;
+        };
+
         self.splat_horizontal_velocity(velocity.x, point);
         self.splat_vertical_velocity(velocity.y, point);
     }
@@ -211,7 +216,7 @@ mod tests {
     #[test]
     fn splat_velocity_onto_grid() {
         let mut grid = StaggeredGrid::new(3, 3, 10., Vec2::new(-15., -15.));
-        grid.splat_velocity(Vec2::new(10., -20.), Vec2::new(2.5, -2.5));
+        grid.particles_to_grid(Vec2::new(10., -20.), Vec2::new(2.5, -2.5));
 
         assert_eq!(
             *grid.horizontal_velocities.get_at(1, 0).unwrap(),
