@@ -56,6 +56,39 @@ impl StaggeredGrid {
         self.splat_vertical_velocity(velocity.y, point);
     }
 
+    pub fn normalize_velocities(&mut self) {
+        self.normalize_horizontal_velocities();
+        self.normalize_vertical_velocities();
+    }
+
+    fn normalize_horizontal_velocities(&mut self) {
+        for i in 0..(self.horizontal_velocities.cols() * self.horizontal_velocities.rows()) {
+            let sum_weights = self.sum_horizontal_weights.get(i).unwrap();
+            let mut velocity_component = self.horizontal_velocities.get_mut(i).unwrap();
+
+            if *sum_weights < f32::EPSILON {
+                *velocity_component = 0.;
+                continue;
+            }
+
+            *velocity_component /= sum_weights;
+        }
+    }
+
+    fn normalize_vertical_velocities(&mut self) {
+        for i in 0..(self.vertical_velocities.cols() * self.vertical_velocities.rows()) {
+            let sum_weights = self.sum_vertical_weights.get(i).unwrap();
+            let mut velocity_component = self.vertical_velocities.get_mut(i).unwrap();
+
+            if *sum_weights < f32::EPSILON {
+                *velocity_component = 0.;
+                continue;
+            }
+
+            *velocity_component /= sum_weights;
+        }
+    }
+
     fn update_horizontal_velocity(&mut self, i: i32, j: i32, velocity_component: f32, weight: f32) {
         if let Some(mut horizontal_velocity) = self.horizontal_velocities.get_at_mut(i, j) {
             *horizontal_velocity += velocity_component * weight;
@@ -162,7 +195,7 @@ mod tests {
     }
 
     #[test]
-    fn splatting_velocity() {
+    fn splat_velocity_onto_grid() {
         let mut grid = StaggeredGrid::new(3, 3, 10., Vec2::new(-15., -15.));
         grid.splat_velocity(Vec2::new(10., -20.), Vec2::new(2.5, -2.5));
 

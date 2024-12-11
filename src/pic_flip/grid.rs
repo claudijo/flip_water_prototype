@@ -40,6 +40,14 @@ impl<T: Debug + Default + Clone> Grid<T> {
         self.data.get_mut(j * self.cols + i)
     }
 
+    pub fn get_mut(&mut self, i: usize) -> Option<&mut T> {
+        self.data.get_mut(i)
+    }
+
+    pub fn get(&mut self, i: usize) -> Option<&T> {
+        self.data.get(i)
+    }
+
     fn validate_indices(&self, i: i32, j: i32) -> Option<(usize, usize)> {
         if i < 0 || j < 0 || i > self.cols as i32 - 1 || j > self.rows as i32 - 1 {
             return None;

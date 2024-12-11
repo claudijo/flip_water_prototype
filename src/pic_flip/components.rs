@@ -48,4 +48,8 @@ impl FluidSimulator {
     pub fn splat_velocity(&mut self, velocity: Vec2, point: Vec2) {
         self.0.splat_velocity(velocity, point);
     }
+
+    pub fn normalize_velocities(&mut self) {
+        self.0.normalize_velocities();
+    }
 }

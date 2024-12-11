@@ -30,10 +30,10 @@ pub fn spawn_fluid_container(
             Visibility::default(),
         ))
         .with_children(|parent| {
-            let particle_count = 1;
-            let particle_per_row = 5;
+            let particle_count = 9;
+            let particle_per_row = 3;
             let particle_size = 4.;
-            let particle_spacing = particle_size * 5.;
+            let particle_spacing = 8.;
 
             for i in 0..particle_count {
                 let x = (i % particle_per_row) as f32 * particle_spacing
@@ -44,7 +44,7 @@ pub fn spawn_fluid_container(
                     Mesh2d(meshes.add(Rectangle::new(particle_size, particle_size))),
                     MeshMaterial2d(materials.add(Color::srgb(1., 1., 1.))),
                     Transform::from_xyz(x, y, 10.),
-                    Velocity(Vec2::new(50., 0.)),
+                    Velocity(Vec2::new(20., 20.)),
                 ));
             }
         });
@@ -56,7 +56,7 @@ pub fn integrate_particles(
     time: Res<Time>,
 ) {
     for (mut velocity, mut transform) in &mut particle_query {
-        velocity.0 += gravity.0 * time.delta_secs();
+        // velocity.0 += gravity.0 * time.delta_secs();
         transform.translation += (velocity.0 * time.delta_secs()).extend(0.);
     }
 }
@@ -70,10 +70,12 @@ pub fn simulate_fluid_mechanics(
         sim.reset();
 
         for child in children {
-            if let Ok((mut velocity, mut transform)) = particles_query.get_mut(*child) {
+            if let Ok((velocity, transform)) = particles_query.get(*child) {
                 sim.splat_velocity(velocity.0, transform.translation.xy());
             }
         }
+
+        sim.normalize_velocities();
     }
 }
 
@@ -82,7 +84,7 @@ pub fn debug_simulation(
     particles_query: Query<(&Velocity, &GlobalTransform)>,
     mut gizmos: Gizmos,
 ) {
-    let velocity_scale = 2.;
+    let velocity_scale = 1.;
 
     // Particle velocities
     for (velocity, global_transform) in &particles_query {
