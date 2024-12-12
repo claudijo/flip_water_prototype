@@ -1,4 +1,5 @@
 use crate::pic_flip::components::{FluidSimulator, Velocity};
+use crate::pic_flip::particle::Particle;
 use crate::pic_flip::resources::Gravity;
 use crate::pic_flip::staggered_grid::{CellType, StaggeredGrid};
 use bevy::color::palettes::basic::{AQUA, BLUE, GRAY, GREEN, MAROON, RED, SILVER};
@@ -20,12 +21,15 @@ pub fn spawn_fluid_container(
         .spawn((
             Mesh2d(meshes.add(Rectangle::new(width, height))),
             MeshMaterial2d(materials.add(Color::srgb(0.5, 0.5, 0.5))),
-            FluidSimulator::new(StaggeredGrid::new(
-                cols,
-                rows,
-                cell_spacing,
-                Vec2::new(-width / 2., -height / 2.),
-            ).with_boundary_cells()),
+            FluidSimulator::new(
+                StaggeredGrid::new(
+                    cols,
+                    rows,
+                    cell_spacing,
+                    Vec2::new(-width / 2., -height / 2.),
+                )
+                .with_boundary_cells(),
+            ),
             Transform::from_xyz(0., 0., -1.),
             Visibility::default(),
         ))
@@ -44,7 +48,7 @@ pub fn spawn_fluid_container(
                     Mesh2d(meshes.add(Rectangle::new(particle_size, particle_size))),
                     MeshMaterial2d(materials.add(Color::srgb(1., 1., 1.))),
                     Transform::from_xyz(x, y, 10.),
-                    Velocity(Vec2::new(20., 0.)),
+                    Velocity(Vec2::new(-20., 0.)),
                 ));
             }
         });
@@ -67,15 +71,17 @@ pub fn simulate_fluid_mechanics(
     time: Res<Time>,
 ) {
     for (mut sim, children) in &mut sim_query {
-        sim.reset();
-
+        let mut particles = vec![];
         for child in children {
             if let Ok((velocity, transform)) = particles_query.get(*child) {
-                sim.splat_velocity(velocity.0, transform.translation.xy());
+                particles.push(Particle {
+                    velocity: velocity.0,
+                    point: transform.translation.xy(),
+                });
             }
         }
 
-        sim.normalize_velocities();
+        sim.particles_to_grid(particles);
     }
 }
 

@@ -1,4 +1,4 @@
-use std::cmp::PartialEq;
+use crate::pic_flip::particle::Particle;
 use crate::pic_flip::staggered_grid::{CellType, StaggeredGrid};
 use bevy::prelude::*;
 
@@ -38,7 +38,7 @@ impl FluidSimulator {
         self.0.vertical_velocities.get_at(i, j)
     }
 
-    pub fn reset(&mut self) {
+    fn reset(&mut self) {
         self.0.pressures.reset();
         self.0.horizontal_velocities.reset();
         self.0.vertical_velocities.reset();
@@ -46,7 +46,7 @@ impl FluidSimulator {
         self.0.sum_vertical_weights.reset();
 
         // Reset fluid cells
-        for i in 0..(self.0.cell_types.cols() * self.0.cell_types.rows()){
+        for i in 0..(self.0.cell_types.cols() * self.0.cell_types.rows()) {
             if let Some(mut cell_type) = self.0.cell_types.get_mut(i) {
                 if *cell_type == CellType::FLUID {
                     *cell_type = CellType::EMPTY;
@@ -55,11 +55,21 @@ impl FluidSimulator {
         }
     }
 
-    pub fn splat_velocity(&mut self, velocity: Vec2, point: Vec2) {
-        self.0.particles_to_grid(velocity, point);
-    }
+    pub fn particles_to_grid(&mut self, particles: Vec<Particle>) {
+        self.reset();
 
-    pub fn normalize_velocities(&mut self) {
+        if self.0.with_boundary_cells {
+            self.0.set_boundery_cells_to_solid();
+        }
+
+        for particle in particles {
+            let point = particle.point - self.0.offset;
+            self.0.set_particle_cell_to_fluid(point);
+            self.0.splat_velocities(particle.velocity, point);
+        }
+
         self.0.normalize_velocities();
+
+        self.0.set_boundary_velocities();
     }
 }

@@ -6,6 +6,7 @@ use bevy::prelude::*;
 
 mod components;
 mod grid;
+mod particle;
 mod resources;
 mod staggered_grid;
 mod systems;

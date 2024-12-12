@@ -21,6 +21,7 @@ pub struct StaggeredGrid {
     pub sum_horizontal_weights: Grid<f32>,
     pub cell_types: Grid<CellType>,
     pub cell_spacing: f32,
+    pub with_boundary_cells: bool,
 }
 
 impl StaggeredGrid {
@@ -36,21 +37,26 @@ impl StaggeredGrid {
             sum_vertical_weights: Grid::new(cols, rows + 1),
             cell_spacing: spacing,
             offset,
+            with_boundary_cells: false
         }
     }
 
     pub fn with_boundary_cells(mut self) -> Self {
+        self.with_boundary_cells = true;
+
+        self
+    }
+
+    pub fn set_boundery_cells_to_solid(&mut self) {
         for i in 0..self.cols {
             for j in 0..self.rows {
                 if i == 0 || i == self.cols - 1 || j == 0 || j == self.rows - 1 {
                     if let Some(mut cell_type) = self.cell_types.get_at_mut(i as i32, j as i32) {
-                       *cell_type = CellType::SOLID;
+                        *cell_type = CellType::SOLID;
                     }
                 }
             }
         }
-
-        self
     }
 
     pub fn horizontal_velocity(&self, i: i32, j: i32) -> Option<&f32> {
@@ -65,12 +71,14 @@ impl StaggeredGrid {
         self.cell_types.get_at(i, j)
     }
 
-    pub fn particles_to_grid(&mut self, velocity: Vec2, point: Vec2) {
+    pub fn set_particle_cell_to_fluid(&mut self, point: Vec2) {
         let (i, j) = self.floor(point);
         if let Some(mut cell_type) = self.cell_types.get_at_mut(i, j) {
-          *cell_type = CellType::FLUID;
+            *cell_type = CellType::FLUID;
         };
+    }
 
+    pub fn splat_velocities(&mut self, velocity: Vec2, point: Vec2) {
         self.splat_horizontal_velocity(velocity.x, point);
         self.splat_vertical_velocity(velocity.y, point);
     }
@@ -78,6 +86,91 @@ impl StaggeredGrid {
     pub fn normalize_velocities(&mut self) {
         self.normalize_horizontal_velocities();
         self.normalize_vertical_velocities();
+    }
+
+    pub fn set_boundary_velocities(&mut self) {
+        let cols = self.cols as i32;
+        let rows = self.rows as i32;
+
+        for i in 0..cols {
+            for j in 0..rows {
+                if i == 0 {
+                    if let Some(mut horizontal_velocity) =
+                        self.horizontal_velocities.get_at_mut(i, j)
+                    {
+                        *horizontal_velocity = 0.;
+                    }
+
+                    if let Some(mut horizontal_velocity) =
+                        self.horizontal_velocities.get_at_mut(i + 1, j)
+                    {
+                        *horizontal_velocity = 0.;
+                    }
+
+                    if let Some(&neighbor_velocity) = self.vertical_velocities.get_at(i + 1, j) {
+                        if let Some(mut border_velocity) = self.vertical_velocities.get_at_mut(i, j) {
+                            *border_velocity = neighbor_velocity;
+                        }
+                    }
+                }
+
+                if i == cols - 1 {
+                    if let Some(mut horizontal_velocity) =
+                        self.horizontal_velocities.get_at_mut(i, j)
+                    {
+                        *horizontal_velocity = 0.;
+                    }
+
+                    if let Some(mut horizontal_velocity) =
+                        self.horizontal_velocities.get_at_mut(i - 1, j)
+                    {
+                        *horizontal_velocity = 0.;
+                    }
+
+                    if let Some(&neighbor_velocity) = self.vertical_velocities.get_at(i - 1, j) {
+                        if let Some(mut border_velocity) = self.vertical_velocities.get_at_mut(i, j) {
+                            *border_velocity = neighbor_velocity;
+                        }
+                    }
+                }
+
+                if j == 0 {
+                    if let Some(mut vertical_velocity) = self.vertical_velocities.get_at_mut(i, j) {
+                        *vertical_velocity = 0.;
+                    }
+
+                    if let Some(mut vertical_velocity) =
+                        self.vertical_velocities.get_at_mut(i, j + 1)
+                    {
+                        *vertical_velocity = 0.;
+                    }
+
+                    if let Some(&neighbor_velocity) = self.horizontal_velocities.get_at(i, j + 1) {
+                        if let Some(mut border_velocity) = self.horizontal_velocities.get_at_mut(i, j) {
+                            *border_velocity = neighbor_velocity;
+                        }
+                    }
+                }
+
+                if j == rows - 1 {
+                    if let Some(mut vertical_velocity) = self.vertical_velocities.get_at_mut(i, j) {
+                        *vertical_velocity = 0.;
+                    }
+
+                    if let Some(mut vertical_velocity) =
+                        self.vertical_velocities.get_at_mut(i, j - 1)
+                    {
+                        *vertical_velocity = 0.;
+                    }
+
+                    if let Some(&neighbor_velocity) = self.horizontal_velocities.get_at(i, j - 1) {
+                        if let Some(mut border_velocity) = self.horizontal_velocities.get_at_mut(i, j) {
+                            *border_velocity = neighbor_velocity;
+                        }
+                    }
+                }
+            }
+        }
     }
 
     fn normalize_horizontal_velocities(&mut self) {
@@ -168,15 +261,12 @@ impl StaggeredGrid {
     }
 
     fn floor(&self, point: Vec2) -> (i32, i32) {
-        let Vec2 { x: i, y: j } = ((point - self.offset) / self.cell_spacing).floor();
+        let Vec2 { x: i, y: j } = (point / self.cell_spacing).floor();
         (i as i32, j as i32)
     }
 
     fn weights(&self, point: Vec2) -> Vec2 {
-        Vec2::new(
-            (point.x - self.offset.x) % self.cell_spacing,
-            (point.y - self.offset.y) % self.cell_spacing,
-        )
+        Vec2::new(point.x % self.cell_spacing, point.y % self.cell_spacing)
     }
 }
 
@@ -216,7 +306,7 @@ mod tests {
     #[test]
     fn splat_velocity_onto_grid() {
         let mut grid = StaggeredGrid::new(3, 3, 10., Vec2::new(-15., -15.));
-        grid.particles_to_grid(Vec2::new(10., -20.), Vec2::new(2.5, -2.5));
+        grid.splat_velocities(Vec2::new(10., -20.), Vec2::new(2.5, -2.5));
 
         assert_eq!(
             *grid.horizontal_velocities.get_at(1, 0).unwrap(),
