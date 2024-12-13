@@ -44,7 +44,7 @@ impl<T: Debug + Default + Clone> Grid<T> {
         self.data.get_mut(i)
     }
 
-    pub fn get(&mut self, i: usize) -> Option<&T> {
+    pub fn get(&self, i: usize) -> Option<&T> {
         self.data.get(i)
     }
 

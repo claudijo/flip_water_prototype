@@ -37,7 +37,7 @@ impl StaggeredGrid {
             sum_vertical_weights: Grid::new(cols, rows + 1),
             cell_spacing: spacing,
             offset,
-            with_boundary_cells: false
+            with_boundary_cells: false,
         }
     }
 
@@ -84,8 +84,14 @@ impl StaggeredGrid {
     }
 
     pub fn normalize_velocities(&mut self) {
-        self.normalize_horizontal_velocities();
-        self.normalize_vertical_velocities();
+        StaggeredGrid::normalize_velocity_components(
+            &mut self.horizontal_velocities,
+            &self.sum_horizontal_weights,
+        );
+        StaggeredGrid::normalize_velocity_components(
+            &mut self.vertical_velocities,
+            &self.sum_vertical_weights,
+        );
     }
 
     fn set_velocity_component_to_zero(mut grid: &mut Grid<f32>, i: i32, j: i32) {
@@ -94,9 +100,15 @@ impl StaggeredGrid {
         }
     }
 
-    fn copy_velocity_component(mut grid: &mut Grid<f32>, src_i: i32, src_j: i32, dest_i: i32, dest_j: i32) {
-        if let Some(&src_velocity) = grid.get_at(src_i, src_j) {
-            if let Some(mut dest_velocity) = grid.get_at_mut(dest_i, dest_j) {
+    fn copy_velocity_component(
+        mut velocities: &mut Grid<f32>,
+        src_i: i32,
+        src_j: i32,
+        dest_i: i32,
+        dest_j: i32,
+    ) {
+        if let Some(&src_velocity) = velocities.get_at(src_i, src_j) {
+            if let Some(mut dest_velocity) = velocities.get_at_mut(dest_i, dest_j) {
                 *dest_velocity = src_velocity;
             }
         }
@@ -106,82 +118,118 @@ impl StaggeredGrid {
         let cols = self.cols as i32;
         let rows = self.rows as i32;
 
-        let a = &self.vertical_velocities;
-
         for i in 0..cols {
             for j in 0..rows {
                 if i == 0 {
-                    StaggeredGrid::set_velocity_component_to_zero(&mut self.horizontal_velocities, i, j);
-                    StaggeredGrid::set_velocity_component_to_zero(&mut self.horizontal_velocities, i + 1, j);
-                    StaggeredGrid::copy_velocity_component(&mut self.vertical_velocities, i + 1, j, i, j);
+                    StaggeredGrid::set_velocity_component_to_zero(
+                        &mut self.horizontal_velocities,
+                        i,
+                        j,
+                    );
+                    StaggeredGrid::set_velocity_component_to_zero(
+                        &mut self.horizontal_velocities,
+                        i + 1,
+                        j,
+                    );
+                    StaggeredGrid::copy_velocity_component(
+                        &mut self.vertical_velocities,
+                        i + 1,
+                        j,
+                        i,
+                        j,
+                    );
                 }
 
                 if i == cols - 1 {
-                    StaggeredGrid::set_velocity_component_to_zero(&mut self.horizontal_velocities, i, j);
-                    StaggeredGrid::set_velocity_component_to_zero(&mut self.horizontal_velocities, i - 1, j);
-                    StaggeredGrid::copy_velocity_component(&mut self.vertical_velocities, i - 1, j, i, j);
+                    StaggeredGrid::set_velocity_component_to_zero(
+                        &mut self.horizontal_velocities,
+                        i,
+                        j,
+                    );
+                    StaggeredGrid::set_velocity_component_to_zero(
+                        &mut self.horizontal_velocities,
+                        i - 1,
+                        j,
+                    );
+                    StaggeredGrid::copy_velocity_component(
+                        &mut self.vertical_velocities,
+                        i - 1,
+                        j,
+                        i,
+                        j,
+                    );
                 }
 
                 if j == 0 {
-                    StaggeredGrid::set_velocity_component_to_zero(&mut self.vertical_velocities, i, j);
-                    StaggeredGrid::set_velocity_component_to_zero(&mut self.vertical_velocities, i, j + 1);
-                    StaggeredGrid::copy_velocity_component(&mut self.horizontal_velocities, i, j + 1, i, j);
+                    StaggeredGrid::set_velocity_component_to_zero(
+                        &mut self.vertical_velocities,
+                        i,
+                        j,
+                    );
+                    StaggeredGrid::set_velocity_component_to_zero(
+                        &mut self.vertical_velocities,
+                        i,
+                        j + 1,
+                    );
+                    StaggeredGrid::copy_velocity_component(
+                        &mut self.horizontal_velocities,
+                        i,
+                        j + 1,
+                        i,
+                        j,
+                    );
                 }
 
                 if j == rows - 1 {
-                    StaggeredGrid::set_velocity_component_to_zero(&mut self.vertical_velocities, i, j);
-                    StaggeredGrid::set_velocity_component_to_zero(&mut self.vertical_velocities, i, j - 1);
-                    StaggeredGrid::copy_velocity_component(&mut self.horizontal_velocities, i, j - 1, i, j);
+                    StaggeredGrid::set_velocity_component_to_zero(
+                        &mut self.vertical_velocities,
+                        i,
+                        j,
+                    );
+                    StaggeredGrid::set_velocity_component_to_zero(
+                        &mut self.vertical_velocities,
+                        i,
+                        j - 1,
+                    );
+                    StaggeredGrid::copy_velocity_component(
+                        &mut self.horizontal_velocities,
+                        i,
+                        j - 1,
+                        i,
+                        j,
+                    );
                 }
             }
         }
     }
 
-    fn normalize_horizontal_velocities(&mut self) {
-        for i in 0..(self.horizontal_velocities.cols() * self.horizontal_velocities.rows()) {
-            let sum_weights = self.sum_horizontal_weights.get(i).unwrap();
-            let mut velocity_component = self.horizontal_velocities.get_mut(i).unwrap();
-
-            if *sum_weights < f32::EPSILON {
-                *velocity_component = 0.;
-                continue;
+    fn normalize_velocity_components(
+        mut velocity_components: &mut Grid<f32>,
+        weight_sums: &Grid<f32>,
+    ) {
+        for i in 0..(velocity_components.cols() * velocity_components.rows()) {
+            if let Some(weight_sum) = weight_sums.get(i) {
+                if let Some(mut velocity_component) = velocity_components.get_mut(i) {
+                    *velocity_component /= *weight_sum;
+                }
             }
-
-            *velocity_component /= sum_weights;
         }
     }
 
-    fn normalize_vertical_velocities(&mut self) {
-        for i in 0..(self.vertical_velocities.cols() * self.vertical_velocities.rows()) {
-            let sum_weights = self.sum_vertical_weights.get(i).unwrap();
-            let mut velocity_component = self.vertical_velocities.get_mut(i).unwrap();
-
-            if *sum_weights < f32::EPSILON {
-                *velocity_component = 0.;
-                continue;
-            }
-
-            *velocity_component /= sum_weights;
-        }
-    }
-
-    fn update_horizontal_velocity(&mut self, i: i32, j: i32, velocity_component: f32, weight: f32) {
-        if let Some(mut horizontal_velocity) = self.horizontal_velocities.get_at_mut(i, j) {
-            *horizontal_velocity += velocity_component * weight;
+    fn update_velocity_component(
+        i: i32,
+        j: i32,
+        mut velocity_components: &mut Grid<f32>,
+        weight_sums: &mut Grid<f32>,
+        magnitude: f32,
+        weight: f32,
+    ) {
+        if let Some(mut velocity_component) = velocity_components.get_at_mut(i, j) {
+            *velocity_component += magnitude * weight;
         }
 
-        if let Some(mut sum_of_weights) = self.sum_horizontal_weights.get_at_mut(i, j) {
-            *sum_of_weights += weight;
-        }
-    }
-
-    fn update_vertical_velocity(&mut self, i: i32, j: i32, velocity_component: f32, weight: f32) {
-        if let Some(mut vertical_velocity) = self.vertical_velocities.get_at_mut(i, j) {
-            *vertical_velocity += velocity_component * weight;
-        }
-
-        if let Some(mut sum_of_weights) = self.sum_vertical_weights.get_at_mut(i, j) {
-            *sum_of_weights += weight;
+        if let Some(mut weight_sum) = weight_sums.get_at_mut(i, j) {
+            *weight_sum += weight;
         }
     }
 
@@ -201,27 +249,83 @@ impl StaggeredGrid {
         ]
     }
 
-    fn splat_horizontal_velocity(&mut self, velocity_component: f32, point: Vec2) {
+    fn splat_horizontal_velocity(&mut self, magnitude: f32, point: Vec2) {
         let shifted_point = point - Vec2::new(0., self.cell_spacing / 2.);
         let weights = self.corner_weights(shifted_point);
 
         let (i, j) = self.floor(shifted_point);
 
-        self.update_horizontal_velocity(i, j, velocity_component, weights[0]);
-        self.update_horizontal_velocity(i + 1, j, velocity_component, weights[1]);
-        self.update_horizontal_velocity(i + 1, j + 1, velocity_component, weights[2]);
-        self.update_horizontal_velocity(i, j + 1, velocity_component, weights[3]);
+        StaggeredGrid::update_velocity_component(
+            i,
+            j,
+            &mut self.horizontal_velocities,
+            &mut self.sum_horizontal_weights,
+            magnitude,
+            weights[0],
+        );
+        StaggeredGrid::update_velocity_component(
+            i + 1,
+            j,
+            &mut self.horizontal_velocities,
+            &mut self.sum_horizontal_weights,
+            magnitude,
+            weights[1],
+        );
+        StaggeredGrid::update_velocity_component(
+            i + 1,
+            j + 1,
+            &mut self.horizontal_velocities,
+            &mut self.sum_horizontal_weights,
+            magnitude,
+            weights[2],
+        );
+        StaggeredGrid::update_velocity_component(
+            i,
+            j + 1,
+            &mut self.horizontal_velocities,
+            &mut self.sum_horizontal_weights,
+            magnitude,
+            weights[3],
+        );
     }
 
-    fn splat_vertical_velocity(&mut self, velocity_component: f32, point: Vec2) {
+    fn splat_vertical_velocity(&mut self, magnitude: f32, point: Vec2) {
         let shifted_point = point - Vec2::new(self.cell_spacing / 2., 0.);
         let weights = self.corner_weights(shifted_point);
         let (i, j) = self.floor(shifted_point);
 
-        self.update_vertical_velocity(i, j, velocity_component, weights[0]);
-        self.update_vertical_velocity(i + 1, j, velocity_component, weights[1]);
-        self.update_vertical_velocity(i + 1, j + 1, velocity_component, weights[2]);
-        self.update_vertical_velocity(i, j + 1, velocity_component, weights[3]);
+        StaggeredGrid::update_velocity_component(
+            i,
+            j,
+            &mut self.vertical_velocities,
+            &mut self.sum_vertical_weights,
+            magnitude,
+            weights[0],
+        );
+        StaggeredGrid::update_velocity_component(
+            i + 1,
+            j,
+            &mut self.vertical_velocities,
+            &mut self.sum_vertical_weights,
+            magnitude,
+            weights[1],
+        );
+        StaggeredGrid::update_velocity_component(
+            i + 1,
+            j + 1,
+            &mut self.vertical_velocities,
+            &mut self.sum_vertical_weights,
+            magnitude,
+            weights[2],
+        );
+        StaggeredGrid::update_velocity_component(
+            i,
+            j + 1,
+            &mut self.vertical_velocities,
+            &mut self.sum_vertical_weights,
+            magnitude,
+            weights[3],
+        );
     }
 
     fn floor(&self, point: Vec2) -> (i32, i32) {
