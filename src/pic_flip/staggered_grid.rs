@@ -121,83 +121,27 @@ impl StaggeredGrid {
         for i in 0..cols {
             for j in 0..rows {
                 if i == 0 {
-                    StaggeredGrid::set_velocity_component_to_zero(
-                        &mut self.horizontal_velocities,
-                        i,
-                        j,
-                    );
-                    StaggeredGrid::set_velocity_component_to_zero(
-                        &mut self.horizontal_velocities,
-                        i + 1,
-                        j,
-                    );
-                    StaggeredGrid::copy_velocity_component(
-                        &mut self.vertical_velocities,
-                        i + 1,
-                        j,
-                        i,
-                        j,
-                    );
+                    Self::set_velocity_component_to_zero(&mut self.horizontal_velocities, i, j);
+                    Self::set_velocity_component_to_zero(&mut self.horizontal_velocities, i + 1, j);
+                    Self::copy_velocity_component(&mut self.vertical_velocities, i + 1, j, i, j);
                 }
 
                 if i == cols - 1 {
-                    StaggeredGrid::set_velocity_component_to_zero(
-                        &mut self.horizontal_velocities,
-                        i,
-                        j,
-                    );
-                    StaggeredGrid::set_velocity_component_to_zero(
-                        &mut self.horizontal_velocities,
-                        i - 1,
-                        j,
-                    );
-                    StaggeredGrid::copy_velocity_component(
-                        &mut self.vertical_velocities,
-                        i - 1,
-                        j,
-                        i,
-                        j,
-                    );
+                    Self::set_velocity_component_to_zero(&mut self.horizontal_velocities, i, j);
+                    Self::set_velocity_component_to_zero(&mut self.horizontal_velocities, i - 1, j);
+                    Self::copy_velocity_component(&mut self.vertical_velocities, i - 1, j, i, j);
                 }
 
                 if j == 0 {
-                    StaggeredGrid::set_velocity_component_to_zero(
-                        &mut self.vertical_velocities,
-                        i,
-                        j,
-                    );
-                    StaggeredGrid::set_velocity_component_to_zero(
-                        &mut self.vertical_velocities,
-                        i,
-                        j + 1,
-                    );
-                    StaggeredGrid::copy_velocity_component(
-                        &mut self.horizontal_velocities,
-                        i,
-                        j + 1,
-                        i,
-                        j,
-                    );
+                    Self::set_velocity_component_to_zero(&mut self.vertical_velocities, i, j);
+                    Self::set_velocity_component_to_zero(&mut self.vertical_velocities, i, j + 1);
+                    Self::copy_velocity_component(&mut self.horizontal_velocities, i, j + 1, i, j);
                 }
 
                 if j == rows - 1 {
-                    StaggeredGrid::set_velocity_component_to_zero(
-                        &mut self.vertical_velocities,
-                        i,
-                        j,
-                    );
-                    StaggeredGrid::set_velocity_component_to_zero(
-                        &mut self.vertical_velocities,
-                        i,
-                        j - 1,
-                    );
-                    StaggeredGrid::copy_velocity_component(
-                        &mut self.horizontal_velocities,
-                        i,
-                        j - 1,
-                        i,
-                        j,
-                    );
+                    Self::set_velocity_component_to_zero(&mut self.vertical_velocities, i, j);
+                    Self::set_velocity_component_to_zero(&mut self.vertical_velocities, i, j - 1);
+                    Self::copy_velocity_component(&mut self.horizontal_velocities, i, j - 1, i, j);
                 }
             }
         }
@@ -255,7 +199,7 @@ impl StaggeredGrid {
 
         let (i, j) = self.floor(shifted_point);
 
-        StaggeredGrid::update_velocity_component(
+        Self::update_velocity_component(
             i,
             j,
             &mut self.horizontal_velocities,
@@ -263,7 +207,7 @@ impl StaggeredGrid {
             magnitude,
             weights[0],
         );
-        StaggeredGrid::update_velocity_component(
+        Self::update_velocity_component(
             i + 1,
             j,
             &mut self.horizontal_velocities,
@@ -271,7 +215,7 @@ impl StaggeredGrid {
             magnitude,
             weights[1],
         );
-        StaggeredGrid::update_velocity_component(
+        Self::update_velocity_component(
             i + 1,
             j + 1,
             &mut self.horizontal_velocities,
@@ -279,7 +223,7 @@ impl StaggeredGrid {
             magnitude,
             weights[2],
         );
-        StaggeredGrid::update_velocity_component(
+        Self::update_velocity_component(
             i,
             j + 1,
             &mut self.horizontal_velocities,
@@ -294,7 +238,7 @@ impl StaggeredGrid {
         let weights = self.corner_weights(shifted_point);
         let (i, j) = self.floor(shifted_point);
 
-        StaggeredGrid::update_velocity_component(
+        Self::update_velocity_component(
             i,
             j,
             &mut self.vertical_velocities,
@@ -302,7 +246,7 @@ impl StaggeredGrid {
             magnitude,
             weights[0],
         );
-        StaggeredGrid::update_velocity_component(
+        Self::update_velocity_component(
             i + 1,
             j,
             &mut self.vertical_velocities,
@@ -310,7 +254,7 @@ impl StaggeredGrid {
             magnitude,
             weights[1],
         );
-        StaggeredGrid::update_velocity_component(
+        Self::update_velocity_component(
             i + 1,
             j + 1,
             &mut self.vertical_velocities,
@@ -318,7 +262,7 @@ impl StaggeredGrid {
             magnitude,
             weights[2],
         );
-        StaggeredGrid::update_velocity_component(
+        Self::update_velocity_component(
             i,
             j + 1,
             &mut self.vertical_velocities,
