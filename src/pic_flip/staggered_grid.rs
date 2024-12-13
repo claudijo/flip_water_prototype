@@ -47,7 +47,7 @@ impl StaggeredGrid {
         self
     }
 
-    pub fn set_boundery_cells_to_solid(&mut self) {
+    pub fn set_boundary_cells_to_solid(&mut self) {
         for i in 0..self.cols {
             for j in 0..self.rows {
                 if i == 0 || i == self.cols - 1 || j == 0 || j == self.rows - 1 {
@@ -92,6 +92,40 @@ impl StaggeredGrid {
             &mut self.vertical_velocities,
             &self.sum_vertical_weights,
         );
+    }
+
+    pub fn advect(&self, point: Vec2) -> Option<Vec2> {
+        let (i, j) = self.floor(point);
+        if i < 0 || i >= self.cols as i32 || j < 0 || j >= self.rows as i32 {
+            return None;
+        }
+
+        Some(Vec2::new(
+            self.advect_horizontal_velocity(point),
+            self.advect_vertical_velocity(point),
+        ))
+    }
+
+    fn advect_horizontal_velocity(&self, point: Vec2) -> f32 {
+        let shifted_point = point - Vec2::new(0., self.cell_spacing / 2.);
+        let weights = self.corner_weights(shifted_point);
+        let (i, j) = self.floor(shifted_point);
+
+        Self::get_velocity_component(i, j, &self.horizontal_velocities, weights[0]).unwrap_or(0.)
+        + Self::get_velocity_component(i + 1, j, &self.horizontal_velocities, weights[1]).unwrap_or(0.)
+        + Self::get_velocity_component(i +1, j+1, &self.horizontal_velocities, weights[2]).unwrap_or(0.)
+        + Self::get_velocity_component(i, j+1, &self.horizontal_velocities, weights[3]).unwrap_or(0.)
+    }
+
+    fn advect_vertical_velocity(&self, point: Vec2) -> f32 {
+        let shifted_point = point - Vec2::new( self.cell_spacing / 2., 0.);
+        let weights = self.corner_weights(shifted_point);
+        let (i, j) = self.floor(shifted_point);
+
+        Self::get_velocity_component(i, j, &self.vertical_velocities, weights[0]).unwrap_or(0.)
+            + Self::get_velocity_component(i + 1, j, &self.vertical_velocities, weights[1]).unwrap_or(0.)
+            + Self::get_velocity_component(i +1, j+1, &self.vertical_velocities, weights[2]).unwrap_or(0.)
+            + Self::get_velocity_component(i, j+1, &self.vertical_velocities, weights[3]).unwrap_or(0.)
     }
 
     fn set_velocity_component_to_zero(mut grid: &mut Grid<f32>, i: i32, j: i32) {
@@ -154,7 +188,9 @@ impl StaggeredGrid {
         // Check in reference source. https://github.com/unusualinsights/flip_pic_examples/blob/main/incremental7/StaggeredGrid.cpp#L390
         // Should be doing: Set boundary velocities to zero.
         // Should be doing:  Normalize the non-boundary velocities (unless the corresponding velocity-weight is small).
-        for (weight_sum, velocity_component) in weight_sums.iter().zip(velocity_components.iter_mut()) {
+        for (weight_sum, velocity_component) in
+            weight_sums.iter().zip(velocity_components.iter_mut())
+        {
             if *weight_sum <= f32::EPSILON {
                 *velocity_component = 0.;
                 continue;
@@ -162,6 +198,11 @@ impl StaggeredGrid {
 
             *velocity_component /= *weight_sum;
         }
+    }
+
+    fn get_velocity_component(i: i32, j: i32, velocity_components: &Grid<f32>, weight: f32) -> Option<f32> {
+        let magnitude = velocity_components.get_at(i, j)?;
+        Some(magnitude * weight)
     }
 
     fn update_velocity_component(

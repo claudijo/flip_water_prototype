@@ -1,4 +1,3 @@
-use crate::pic_flip::particle::Particle;
 use crate::pic_flip::staggered_grid::{CellType, StaggeredGrid};
 use bevy::prelude::*;
 
@@ -53,21 +52,26 @@ impl FluidSimulator {
         }
     }
 
-    pub fn particles_to_grid(&mut self, particles: Vec<Particle>) {
+    pub fn particles_to_grid(&mut self, velocities_points: Vec<(Vec2, Vec2)>) {
         self.reset();
 
         if self.0.with_boundary_cells {
-            self.0.set_boundery_cells_to_solid();
+            self.0.set_boundary_cells_to_solid();
         }
 
-        for particle in particles {
-            let point = particle.point - self.0.offset;
+        for (velocity, point) in velocities_points {
+            let point = point - self.0.offset;
             self.0.set_particle_cell_to_fluid(point);
-            self.0.splat_velocities(particle.velocity, point);
+            self.0.splat_velocities(velocity, point);
         }
 
         self.0.normalize_velocities();
 
         self.0.set_boundary_velocities();
+    }
+
+    pub fn grid_to_particle(&self, point: Vec2) -> Option<Vec2> {
+        let point = point - self.0.offset;
+        self.0.advect(point)
     }
 }

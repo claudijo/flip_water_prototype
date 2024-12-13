@@ -50,7 +50,7 @@ impl<T: Debug + Default + Clone> Grid<T> {
     }
 
     fn validate_indices(&self, i: i32, j: i32) -> Option<(usize, usize)> {
-        if i < 0 || j < 0 || i > self.cols as i32 - 1 || j > self.rows as i32 - 1 {
+        if i < 0 || j < 0 || i >= self.cols as i32 || j >= self.rows as i32 {
             return None;
         }
 

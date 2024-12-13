@@ -1,5 +1,4 @@
 use crate::pic_flip::components::{FluidSimulator, Velocity};
-use crate::pic_flip::particle::Particle;
 use crate::pic_flip::resources::Gravity;
 use crate::pic_flip::staggered_grid::{CellType, StaggeredGrid};
 use bevy::color::palettes::basic::{AQUA, BLUE, GRAY, GREEN, MAROON, RED, SILVER};
@@ -71,17 +70,25 @@ pub fn simulate_fluid_mechanics(
     time: Res<Time>,
 ) {
     for (mut sim, children) in &mut sim_query {
-        let mut particles = vec![];
-        for child in children {
-            if let Ok((velocity, transform)) = particles_query.get(*child) {
-                particles.push(Particle {
-                    velocity: velocity.0,
-                    point: transform.translation.xy(),
-                });
-            }
-        }
+        let particles = children
+            .iter()
+            .filter_map(|entity| {
+                let (velocity, transform) = particles_query.get(*entity).ok()?;
+                Some((velocity.0, transform.translation.xy()))
+            })
+            .collect::<Vec<_>>();
 
         sim.particles_to_grid(particles);
+
+        for child in children {
+            if let Ok((mut velocity, transform)) = particles_query.get_mut(*child) {
+                // TODO: Check that particle is withing boundaries. If not place it inside
+                if let Some(adjusted_velocity) = sim.grid_to_particle(transform.translation.xy()) {
+                    velocity.0 = adjusted_velocity;
+                }
+
+            }
+        }
     }
 }
 
