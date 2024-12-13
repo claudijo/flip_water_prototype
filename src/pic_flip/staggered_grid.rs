@@ -88,86 +88,50 @@ impl StaggeredGrid {
         self.normalize_vertical_velocities();
     }
 
+    fn set_velocity_component_to_zero(mut grid: &mut Grid<f32>, i: i32, j: i32) {
+        if let Some(mut velocoity) = grid.get_at_mut(i, j) {
+            *velocoity = 0.;
+        }
+    }
+
+    fn copy_velocity_component(mut grid: &mut Grid<f32>, src_i: i32, src_j: i32, dest_i: i32, dest_j: i32) {
+        if let Some(&src_velocity) = grid.get_at(src_i, src_j) {
+            if let Some(mut dest_velocity) = grid.get_at_mut(dest_i, dest_j) {
+                *dest_velocity = src_velocity;
+            }
+        }
+    }
+
     pub fn set_boundary_velocities(&mut self) {
         let cols = self.cols as i32;
         let rows = self.rows as i32;
 
+        let a = &self.vertical_velocities;
+
         for i in 0..cols {
             for j in 0..rows {
                 if i == 0 {
-                    if let Some(mut horizontal_velocity) =
-                        self.horizontal_velocities.get_at_mut(i, j)
-                    {
-                        *horizontal_velocity = 0.;
-                    }
-
-                    if let Some(mut horizontal_velocity) =
-                        self.horizontal_velocities.get_at_mut(i + 1, j)
-                    {
-                        *horizontal_velocity = 0.;
-                    }
-
-                    if let Some(&neighbor_velocity) = self.vertical_velocities.get_at(i + 1, j) {
-                        if let Some(mut border_velocity) = self.vertical_velocities.get_at_mut(i, j) {
-                            *border_velocity = neighbor_velocity;
-                        }
-                    }
+                    StaggeredGrid::set_velocity_component_to_zero(&mut self.horizontal_velocities, i, j);
+                    StaggeredGrid::set_velocity_component_to_zero(&mut self.horizontal_velocities, i + 1, j);
+                    StaggeredGrid::copy_velocity_component(&mut self.vertical_velocities, i + 1, j, i, j);
                 }
 
                 if i == cols - 1 {
-                    if let Some(mut horizontal_velocity) =
-                        self.horizontal_velocities.get_at_mut(i, j)
-                    {
-                        *horizontal_velocity = 0.;
-                    }
-
-                    if let Some(mut horizontal_velocity) =
-                        self.horizontal_velocities.get_at_mut(i - 1, j)
-                    {
-                        *horizontal_velocity = 0.;
-                    }
-
-                    if let Some(&neighbor_velocity) = self.vertical_velocities.get_at(i - 1, j) {
-                        if let Some(mut border_velocity) = self.vertical_velocities.get_at_mut(i, j) {
-                            *border_velocity = neighbor_velocity;
-                        }
-                    }
+                    StaggeredGrid::set_velocity_component_to_zero(&mut self.horizontal_velocities, i, j);
+                    StaggeredGrid::set_velocity_component_to_zero(&mut self.horizontal_velocities, i - 1, j);
+                    StaggeredGrid::copy_velocity_component(&mut self.vertical_velocities, i - 1, j, i, j);
                 }
 
                 if j == 0 {
-                    if let Some(mut vertical_velocity) = self.vertical_velocities.get_at_mut(i, j) {
-                        *vertical_velocity = 0.;
-                    }
-
-                    if let Some(mut vertical_velocity) =
-                        self.vertical_velocities.get_at_mut(i, j + 1)
-                    {
-                        *vertical_velocity = 0.;
-                    }
-
-                    if let Some(&neighbor_velocity) = self.horizontal_velocities.get_at(i, j + 1) {
-                        if let Some(mut border_velocity) = self.horizontal_velocities.get_at_mut(i, j) {
-                            *border_velocity = neighbor_velocity;
-                        }
-                    }
+                    StaggeredGrid::set_velocity_component_to_zero(&mut self.vertical_velocities, i, j);
+                    StaggeredGrid::set_velocity_component_to_zero(&mut self.vertical_velocities, i, j + 1);
+                    StaggeredGrid::copy_velocity_component(&mut self.horizontal_velocities, i, j + 1, i, j);
                 }
 
                 if j == rows - 1 {
-                    if let Some(mut vertical_velocity) = self.vertical_velocities.get_at_mut(i, j) {
-                        *vertical_velocity = 0.;
-                    }
-
-                    if let Some(mut vertical_velocity) =
-                        self.vertical_velocities.get_at_mut(i, j - 1)
-                    {
-                        *vertical_velocity = 0.;
-                    }
-
-                    if let Some(&neighbor_velocity) = self.horizontal_velocities.get_at(i, j - 1) {
-                        if let Some(mut border_velocity) = self.horizontal_velocities.get_at_mut(i, j) {
-                            *border_velocity = neighbor_velocity;
-                        }
-                    }
+                    StaggeredGrid::set_velocity_component_to_zero(&mut self.vertical_velocities, i, j);
+                    StaggeredGrid::set_velocity_component_to_zero(&mut self.vertical_velocities, i, j - 1);
+                    StaggeredGrid::copy_velocity_component(&mut self.horizontal_velocities, i, j - 1, i, j);
                 }
             }
         }
