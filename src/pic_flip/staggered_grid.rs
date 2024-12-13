@@ -151,17 +151,17 @@ impl StaggeredGrid {
         mut velocity_components: &mut Grid<f32>,
         weight_sums: &Grid<f32>,
     ) {
+        // Check in reference source. https://github.com/unusualinsights/flip_pic_examples/blob/main/incremental7/StaggeredGrid.cpp#L390
+        // Should be doing: Set boundary velocities to zero.
+        // Should be doing:  Normalize the non-boundary velocities (unless the corresponding velocity-weight is small).
         for (weight_sum, velocity_component) in weight_sums.iter().zip(velocity_components.iter_mut()) {
+            if *weight_sum <= f32::EPSILON {
+                *velocity_component = 0.;
+                continue;
+            }
+
             *velocity_component /= *weight_sum;
         }
-
-        // for i in 0..(velocity_components.cols() * velocity_components.rows()) {
-        //     if let Some(weight_sum) = weight_sums.get(i) {
-        //         if let Some(mut velocity_component) = velocity_components.get_mut(i) {
-        //             *velocity_component /= *weight_sum;
-        //         }
-        //     }
-        // }
     }
 
     fn update_velocity_component(
