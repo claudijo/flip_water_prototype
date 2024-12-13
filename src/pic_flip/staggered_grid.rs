@@ -151,13 +151,17 @@ impl StaggeredGrid {
         mut velocity_components: &mut Grid<f32>,
         weight_sums: &Grid<f32>,
     ) {
-        for i in 0..(velocity_components.cols() * velocity_components.rows()) {
-            if let Some(weight_sum) = weight_sums.get(i) {
-                if let Some(mut velocity_component) = velocity_components.get_mut(i) {
-                    *velocity_component /= *weight_sum;
-                }
-            }
+        for (weight_sum, velocity_component) in weight_sums.iter().zip(velocity_components.iter_mut()) {
+            *velocity_component /= *weight_sum;
         }
+
+        // for i in 0..(velocity_components.cols() * velocity_components.rows()) {
+        //     if let Some(weight_sum) = weight_sums.get(i) {
+        //         if let Some(mut velocity_component) = velocity_components.get_mut(i) {
+        //             *velocity_component /= *weight_sum;
+        //         }
+        //     }
+        // }
     }
 
     fn update_velocity_component(

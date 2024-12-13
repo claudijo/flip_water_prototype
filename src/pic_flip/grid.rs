@@ -1,4 +1,5 @@
 use std::fmt::Debug;
+use std::slice::{Iter, IterMut};
 
 #[derive(Debug)]
 pub struct Grid<T> {
@@ -40,12 +41,12 @@ impl<T: Debug + Default + Clone> Grid<T> {
         self.data.get_mut(j * self.cols + i)
     }
 
-    pub fn get_mut(&mut self, i: usize) -> Option<&mut T> {
-        self.data.get_mut(i)
+    pub fn iter(&self) -> Iter<'_, T> {
+        self.data.iter()
     }
 
-    pub fn get(&self, i: usize) -> Option<&T> {
-        self.data.get(i)
+    pub fn iter_mut(&mut self) -> IterMut<'_, T> {
+        self.data.iter_mut()
     }
 
     fn validate_indices(&self, i: i32, j: i32) -> Option<(usize, usize)> {

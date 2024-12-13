@@ -46,11 +46,9 @@ impl FluidSimulator {
         self.0.sum_vertical_weights.reset();
 
         // Reset fluid cells
-        for i in 0..(self.0.cell_types.cols() * self.0.cell_types.rows()) {
-            if let Some(mut cell_type) = self.0.cell_types.get_mut(i) {
-                if *cell_type == CellType::FLUID {
-                    *cell_type = CellType::EMPTY;
-                }
+        for mut cell_type in self.0.cell_types.iter_mut() {
+            if *cell_type == CellType::FLUID {
+                *cell_type = CellType::EMPTY;
             }
         }
     }
