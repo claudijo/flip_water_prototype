@@ -1,3 +1,4 @@
+use std::ops::Neg;
 use crate::pic_flip::components::{FluidSimulator, Velocity};
 use crate::pic_flip::resources::Gravity;
 use crate::pic_flip::staggered_grid::{CellType, StaggeredGrid};
@@ -83,8 +84,10 @@ pub fn simulate_fluid_mechanics(
         sim.project_pressure();
 
         for child in children {
-            if let Ok((mut velocity, transform)) = particles_query.get_mut(*child) {
-                // TODO: Check that particle is withing boundaries. If not place it inside
+            if let Ok((mut velocity, mut transform)) = particles_query.get_mut(*child) {
+                // Check that particle is withing boundaries. If not place it inside
+                transform.translation = transform.translation.clamp(sim.offset().extend(f32::NEG_INFINITY), sim.offset().neg().extend(f32::INFINITY));
+
                 if let Some(adjusted_velocity) = sim.grid_to_particle(transform.translation.xy()) {
                     velocity.0 = adjusted_velocity;
                 }

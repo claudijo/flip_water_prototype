@@ -4,12 +4,8 @@
 // Feel free to delete this line.
 #![allow(clippy::too_many_arguments, clippy::type_complexity)]
 
-mod flip;
-mod flop;
 mod pic_flip;
 
-use crate::flip::FlipPlugin;
-use crate::flop::FlopPlugin;
 use crate::pic_flip::PicFlipPlugin;
 use bevy::asset::AssetMetaCheck;
 use bevy::prelude::*;

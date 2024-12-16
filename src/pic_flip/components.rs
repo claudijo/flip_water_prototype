@@ -73,7 +73,7 @@ impl FluidSimulator {
     }
 
     pub fn project_pressure(&mut self) {
-        self.0.project_pressure(200, 1.9);
+        self.0.project_pressure(100, 1.9);
 
         /*
 
@@ -93,5 +93,9 @@ impl FluidSimulator {
     pub fn grid_to_particle(&self, point: Vec2) -> Option<Vec2> {
         let point = point - self.0.offset;
         self.0.interpolate_velocity(point)
+    }
+
+    pub fn offset(&self) -> Vec2 {
+        self.0.offset
     }
 }
