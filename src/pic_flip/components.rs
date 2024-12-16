@@ -67,7 +67,7 @@ impl FluidSimulator {
 
         self.0.normalize_velocities();
 
-        // TODO: Store normalized velocities (for FLIP implementation)
+        self.0.store_normalized_velocities();
 
         self.0.set_boundary_velocities();
     }

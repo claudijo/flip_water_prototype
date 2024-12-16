@@ -17,6 +17,8 @@ pub struct StaggeredGrid {
     pub pressures: Grid<f32>,
     pub horizontal_velocities: Grid<f32>,
     pub vertical_velocities: Grid<f32>,
+    pub normalized_horizontal_velocities: Grid<f32>,
+    pub normalized_vertical_velocities: Grid<f32>,
     pub sum_vertical_weights: Grid<f32>,
     pub sum_horizontal_weights: Grid<f32>,
     pub cell_types: Grid<CellType>,
@@ -33,7 +35,9 @@ impl StaggeredGrid {
             pressures: Grid::new(cols, rows),
             horizontal_velocities: Grid::new(cols + 1, rows),
             sum_horizontal_weights: Grid::new(cols + 1, rows),
+            normalized_horizontal_velocities: Grid::new(cols + 1, rows),
             vertical_velocities: Grid::new(cols, rows + 1),
+            normalized_vertical_velocities: Grid::new(cols, rows + 1),
             sum_vertical_weights: Grid::new(cols, rows + 1),
             cell_spacing: spacing,
             offset,
@@ -94,6 +98,24 @@ impl StaggeredGrid {
         );
     }
 
+    pub fn store_normalized_velocities(&mut self) {
+        for (source, target) in self
+            .horizontal_velocities
+            .iter()
+            .zip(self.normalized_horizontal_velocities.iter_mut())
+        {
+            *target = *source;
+        }
+
+        for (source, target) in self
+            .vertical_velocities
+            .iter()
+            .zip(self.normalized_vertical_velocities.iter_mut())
+        {
+            *target = *source;
+        }
+    }
+
     pub fn interpolate_velocity(&self, point: Vec2) -> Option<Vec2> {
         let (i, j) = self.floor(point);
         if i < 0 || i >= self.cols as i32 || j < 0 || j >= self.rows as i32 {
@@ -112,20 +134,26 @@ impl StaggeredGrid {
         let (i, j) = self.floor(shifted_point);
 
         Self::get_velocity_component(i, j, &self.horizontal_velocities, weights[0]).unwrap_or(0.)
-        + Self::get_velocity_component(i + 1, j, &self.horizontal_velocities, weights[1]).unwrap_or(0.)
-        + Self::get_velocity_component(i +1, j+1, &self.horizontal_velocities, weights[2]).unwrap_or(0.)
-        + Self::get_velocity_component(i, j+1, &self.horizontal_velocities, weights[3]).unwrap_or(0.)
+            + Self::get_velocity_component(i + 1, j, &self.horizontal_velocities, weights[1])
+                .unwrap_or(0.)
+            + Self::get_velocity_component(i + 1, j + 1, &self.horizontal_velocities, weights[2])
+                .unwrap_or(0.)
+            + Self::get_velocity_component(i, j + 1, &self.horizontal_velocities, weights[3])
+                .unwrap_or(0.)
     }
 
     fn interpolate_vertical_velocity(&self, point: Vec2) -> f32 {
-        let shifted_point = point - Vec2::new( self.cell_spacing / 2., 0.);
+        let shifted_point = point - Vec2::new(self.cell_spacing / 2., 0.);
         let weights = self.corner_weights(shifted_point);
         let (i, j) = self.floor(shifted_point);
 
         Self::get_velocity_component(i, j, &self.vertical_velocities, weights[0]).unwrap_or(0.)
-            + Self::get_velocity_component(i + 1, j, &self.vertical_velocities, weights[1]).unwrap_or(0.)
-            + Self::get_velocity_component(i +1, j+1, &self.vertical_velocities, weights[2]).unwrap_or(0.)
-            + Self::get_velocity_component(i, j+1, &self.vertical_velocities, weights[3]).unwrap_or(0.)
+            + Self::get_velocity_component(i + 1, j, &self.vertical_velocities, weights[1])
+                .unwrap_or(0.)
+            + Self::get_velocity_component(i + 1, j + 1, &self.vertical_velocities, weights[2])
+                .unwrap_or(0.)
+            + Self::get_velocity_component(i, j + 1, &self.vertical_velocities, weights[3])
+                .unwrap_or(0.)
     }
 
     fn set_velocity_component_to_zero(mut grid: &mut Grid<f32>, i: i32, j: i32) {
@@ -200,7 +228,12 @@ impl StaggeredGrid {
         }
     }
 
-    fn get_velocity_component(i: i32, j: i32, velocity_components: &Grid<f32>, weight: f32) -> Option<f32> {
+    fn get_velocity_component(
+        i: i32,
+        j: i32,
+        velocity_components: &Grid<f32>,
+        weight: f32,
+    ) -> Option<f32> {
         let magnitude = velocity_components.get_at(i, j)?;
         Some(magnitude * weight)
     }

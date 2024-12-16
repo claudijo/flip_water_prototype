@@ -86,7 +86,6 @@ pub fn simulate_fluid_mechanics(
                 if let Some(adjusted_velocity) = sim.grid_to_particle(transform.translation.xy()) {
                     velocity.0 = adjusted_velocity;
                 }
-
             }
         }
     }
