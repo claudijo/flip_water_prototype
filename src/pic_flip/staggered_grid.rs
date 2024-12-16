@@ -129,51 +129,38 @@ impl StaggeredGrid {
         ))
     }
 
-    pub fn project_pressure(&mut self) {
+    pub fn project_pressure(&mut self, iterations: usize, over_relaxation: f32) {
         let cols = self.cell_types.cols();
-        for (i, cell_type) in self.cell_types.iter().enumerate() {
-            if *cell_type == CellType::FLUID {
-                let (i, j) = ((i % cols) as i32, (i / cols) as i32);
-                let divergence = self.divergence(i, j);
-                let non_solid_neighbours_count = self.non_solid_neighbours_count(i, j);
+        for _ in 0..iterations {
+            for (i, cell_type) in self.cell_types.iter().enumerate() {
+                if *cell_type == CellType::FLUID {
+                    let (i, j) = ((i % cols) as i32, (i / cols) as i32);
+                    let divergence =  over_relaxation * self.divergence(i, j);
+                    let non_solid_neighbours_count = self.non_solid_neighbours_count(i, j);
 
-                let s1 = self.contribute_to_solid_cell_count(i - 1, j);
-                if let Some(velocity) = self.horizontal_velocities.get_at_mut(i, j) {
-                    *velocity += divergence * s1 / non_solid_neighbours_count;
+                    let s1 = self.contribute_to_solid_cell_count(i - 1, j);
+                    if let Some(velocity) = self.horizontal_velocities.get_at_mut(i, j) {
+                        *velocity += divergence * s1 / non_solid_neighbours_count;
+                    }
+
+                    let s2 = self.contribute_to_solid_cell_count(i + 1, j);
+                    if let Some(velocity) = self.horizontal_velocities.get_at_mut(i + 1, j) {
+                        *velocity -= divergence * s2 / non_solid_neighbours_count;
+                    }
+
+                    let s3 = self.contribute_to_solid_cell_count(i, j - 1);
+                    if let Some(mut velocity) = self.vertical_velocities.get_at_mut(i, j) {
+                        *velocity += divergence * s3 / non_solid_neighbours_count;
+                    }
+
+                    let s4 = self.contribute_to_solid_cell_count(i, j + 1);
+                    if let Some(mut velocity) = self.vertical_velocities.get_at_mut(i, j + 1) {
+                        *velocity -= divergence * s4 / non_solid_neighbours_count;
+                    }
                 }
-
-                let s2 = self.contribute_to_solid_cell_count(i + 1, j);
-                if let Some(velocity) = self.horizontal_velocities.get_at_mut(i + 1, j) {
-                    *velocity -= divergence * s2 / non_solid_neighbours_count;
-                }
-
-                let s3 = self.contribute_to_solid_cell_count(i, j - 1);
-                if let Some(mut velocity) = self.vertical_velocities.get_at_mut(i, j) {
-                    *velocity += divergence * s3 / non_solid_neighbours_count;
-                }
-
-                let s4 = self.contribute_to_solid_cell_count(i, j + 1);
-                if let Some(mut velocity) = self.vertical_velocities.get_at_mut(i, j + 1) {
-                    *velocity -= divergence * s4 / non_solid_neighbours_count;
-                }
-
-                // *self.horizontal_velocities.get_at_mut(i, j) += divergence
-                //     * self.contribute_to_solid_cell_count(i - 1, j)
-                //     / non_solid_neighbours_count;
-
-                // *self.horizontal_velocities.get_at_mut(i + 1, j) -= divergence
-                //     * self.contribute_to_solid_cell_count(i + 1, j)
-                //     / non_solid_neighbours_count;
-
-                // *self.vertical_velocities.get_at_mut(i, j) += divergence
-                //     * self.contribute_to_solid_cell_count(i, j - 1)
-                //     / non_solid_neighbours_count;
-
-                // *self.vertical_velocities.get_at_mut(i, j + 1) -= divergence
-                //     * self.contribute_to_solid_cell_count(i, j + 1)
-                //     / non_solid_neighbours_count;
             }
         }
+
     }
 
     fn contribute_to_solid_cell_count(&self, i: i32, j: i32) -> f32 {

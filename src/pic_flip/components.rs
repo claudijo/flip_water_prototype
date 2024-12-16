@@ -73,9 +73,7 @@ impl FluidSimulator {
     }
 
     pub fn project_pressure(&mut self) {
-        for _ in 0..200 {
-            self.0.project_pressure();
-        }
+        self.0.project_pressure(200, 1.9);
 
         /*
 
