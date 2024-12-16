@@ -72,6 +72,26 @@ impl FluidSimulator {
         self.0.set_boundary_velocities();
     }
 
+    pub fn project_pressure(&mut self) {
+        for _ in 0..200 {
+            self.0.project_pressure();
+        }
+
+        /*
+
+        // Cache which neighbors are non-SOLID and which ones are FLUID.
+        MakeNeighborMaterialInfo(cell_labels_, &neighbors_);
+
+        // Determine fluid pressures that make fluid velocity as divergence-free as
+        // we reasonably can.
+        pressure_solver_.ProjectPressure(cell_labels_, neighbors_, u_, v_, w_, &p_);
+
+        // Update grid fluid velocity values based on the fluid pressure gradient.
+        SubtractPressureGradientFromVelocity():
+
+         */
+    }
+
     pub fn grid_to_particle(&self, point: Vec2) -> Option<Vec2> {
         let point = point - self.0.offset;
         self.0.interpolate_velocity(point)

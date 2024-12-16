@@ -14,14 +14,14 @@ pub struct PicFlipPlugin;
 
 impl Plugin for PicFlipPlugin {
     fn build(&self, app: &mut App) {
-        app.insert_resource(Gravity(Vec2::new(0., -10.)));
+        app.insert_resource(Gravity(Vec2::new(0., -1000.)));
         app.add_systems(Startup, spawn_fluid_container);
         app.add_systems(
             Update,
             (
                 integrate_particles,
                 simulate_fluid_mechanics,
-                debug_simulation,
+                // debug_simulation,
             )
                 .chain(),
         );

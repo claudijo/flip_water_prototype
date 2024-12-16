@@ -92,6 +92,7 @@ impl StaggeredGrid {
             &mut self.horizontal_velocities,
             &self.sum_horizontal_weights,
         );
+
         StaggeredGrid::normalize_velocity_components(
             &mut self.vertical_velocities,
             &self.sum_vertical_weights,
@@ -128,18 +129,105 @@ impl StaggeredGrid {
         ))
     }
 
+    pub fn project_pressure(&mut self) {
+        let cols = self.cell_types.cols();
+        for (i, cell_type) in self.cell_types.iter().enumerate() {
+            if *cell_type == CellType::FLUID {
+                let (i, j) = ((i % cols) as i32, (i / cols) as i32);
+                let divergence = self.divergence(i, j);
+                let non_solid_neighbours_count = self.non_solid_neighbours_count(i, j);
+
+                let s1 = self.contribute_to_solid_cell_count(i - 1, j);
+                if let Some(velocity) = self.horizontal_velocities.get_at_mut(i, j) {
+                    *velocity += divergence * s1 / non_solid_neighbours_count;
+                }
+
+                let s2 = self.contribute_to_solid_cell_count(i + 1, j);
+                if let Some(velocity) = self.horizontal_velocities.get_at_mut(i + 1, j) {
+                    *velocity -= divergence * s2 / non_solid_neighbours_count;
+                }
+
+                let s3 = self.contribute_to_solid_cell_count(i, j - 1);
+                if let Some(mut velocity) = self.vertical_velocities.get_at_mut(i, j) {
+                    *velocity += divergence * s3 / non_solid_neighbours_count;
+                }
+
+                let s4 = self.contribute_to_solid_cell_count(i, j + 1);
+                if let Some(mut velocity) = self.vertical_velocities.get_at_mut(i, j + 1) {
+                    *velocity -= divergence * s4 / non_solid_neighbours_count;
+                }
+
+                // *self.horizontal_velocities.get_at_mut(i, j) += divergence
+                //     * self.contribute_to_solid_cell_count(i - 1, j)
+                //     / non_solid_neighbours_count;
+
+                // *self.horizontal_velocities.get_at_mut(i + 1, j) -= divergence
+                //     * self.contribute_to_solid_cell_count(i + 1, j)
+                //     / non_solid_neighbours_count;
+
+                // *self.vertical_velocities.get_at_mut(i, j) += divergence
+                //     * self.contribute_to_solid_cell_count(i, j - 1)
+                //     / non_solid_neighbours_count;
+
+                // *self.vertical_velocities.get_at_mut(i, j + 1) -= divergence
+                //     * self.contribute_to_solid_cell_count(i, j + 1)
+                //     / non_solid_neighbours_count;
+            }
+        }
+    }
+
+    fn contribute_to_solid_cell_count(&self, i: i32, j: i32) -> f32 {
+        match self.cell_types.get_at(i, j) {
+            None => 0.,
+            Some(cell_type) => match cell_type {
+                CellType::SOLID => 0.,
+                _ => 1.,
+            },
+        }
+    }
+
+    fn non_solid_neighbours_count(&self, i: i32, j: i32) -> f32 {
+        self.contribute_to_solid_cell_count(i + 1, j)
+            + self.contribute_to_solid_cell_count(i - 1, j)
+            + self.contribute_to_solid_cell_count(i, j + 1)
+            + self.contribute_to_solid_cell_count(i, j - 1)
+    }
+
+    fn divergence(&self, i: i32, j: i32) -> f32 {
+        self.horizontal_velocities.get_at(i + 1, j).unwrap_or(&0.)
+            - self.horizontal_velocities.get_at(i, j).unwrap_or(&0.)
+            + self.vertical_velocities.get_at(i, j + 1).unwrap_or(&0.)
+            - self.vertical_velocities.get_at(i, j).unwrap_or(&0.)
+    }
+
     fn interpolate_horizontal_velocity(&self, point: Vec2) -> f32 {
         let shifted_point = point - Vec2::new(0., self.cell_spacing / 2.);
         let weights = self.corner_weights(shifted_point);
         let (i, j) = self.floor(shifted_point);
 
-        Self::get_velocity_component(i, j, &self.horizontal_velocities, weights[0]).unwrap_or(0.)
-            + Self::get_velocity_component(i + 1, j, &self.horizontal_velocities, weights[1])
-                .unwrap_or(0.)
-            + Self::get_velocity_component(i + 1, j + 1, &self.horizontal_velocities, weights[2])
-                .unwrap_or(0.)
-            + Self::get_velocity_component(i, j + 1, &self.horizontal_velocities, weights[3])
-                .unwrap_or(0.)
+        Self::get_weighted_velocity_component(i, j, &self.horizontal_velocities, weights[0])
+            .unwrap_or(0.)
+            + Self::get_weighted_velocity_component(
+                i + 1,
+                j,
+                &self.horizontal_velocities,
+                weights[1],
+            )
+            .unwrap_or(0.)
+            + Self::get_weighted_velocity_component(
+                i + 1,
+                j + 1,
+                &self.horizontal_velocities,
+                weights[2],
+            )
+            .unwrap_or(0.)
+            + Self::get_weighted_velocity_component(
+                i,
+                j + 1,
+                &self.horizontal_velocities,
+                weights[3],
+            )
+            .unwrap_or(0.)
     }
 
     fn interpolate_vertical_velocity(&self, point: Vec2) -> f32 {
@@ -147,12 +235,18 @@ impl StaggeredGrid {
         let weights = self.corner_weights(shifted_point);
         let (i, j) = self.floor(shifted_point);
 
-        Self::get_velocity_component(i, j, &self.vertical_velocities, weights[0]).unwrap_or(0.)
-            + Self::get_velocity_component(i + 1, j, &self.vertical_velocities, weights[1])
+        Self::get_weighted_velocity_component(i, j, &self.vertical_velocities, weights[0])
+            .unwrap_or(0.)
+            + Self::get_weighted_velocity_component(i + 1, j, &self.vertical_velocities, weights[1])
                 .unwrap_or(0.)
-            + Self::get_velocity_component(i + 1, j + 1, &self.vertical_velocities, weights[2])
-                .unwrap_or(0.)
-            + Self::get_velocity_component(i, j + 1, &self.vertical_velocities, weights[3])
+            + Self::get_weighted_velocity_component(
+                i + 1,
+                j + 1,
+                &self.vertical_velocities,
+                weights[2],
+            )
+            .unwrap_or(0.)
+            + Self::get_weighted_velocity_component(i, j + 1, &self.vertical_velocities, weights[3])
                 .unwrap_or(0.)
     }
 
@@ -228,7 +322,7 @@ impl StaggeredGrid {
         }
     }
 
-    fn get_velocity_component(
+    fn get_weighted_velocity_component(
         i: i32,
         j: i32,
         velocity_components: &Grid<f32>,

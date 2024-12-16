@@ -1,7 +1,7 @@
 use crate::pic_flip::components::{FluidSimulator, Velocity};
 use crate::pic_flip::resources::Gravity;
 use crate::pic_flip::staggered_grid::{CellType, StaggeredGrid};
-use bevy::color::palettes::basic::{AQUA, BLUE, GRAY, GREEN, MAROON, RED, SILVER};
+use bevy::color::palettes::basic::{AQUA, BLUE, GREEN, MAROON, RED};
 use bevy::prelude::*;
 
 pub fn spawn_fluid_container(
@@ -9,9 +9,9 @@ pub fn spawn_fluid_container(
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<ColorMaterial>>,
 ) {
-    let cols = 10;
-    let rows = 8;
-    let cell_spacing = 50.;
+    let cols = 50;
+    let rows = 40;
+    let cell_spacing = 10.;
 
     let width = cols as f32 * cell_spacing;
     let height = rows as f32 * cell_spacing;
@@ -33,10 +33,10 @@ pub fn spawn_fluid_container(
             Visibility::default(),
         ))
         .with_children(|parent| {
-            let particle_count = 9;
-            let particle_per_row = 3;
+            let particle_count = 50 * 50;
+            let particle_per_row = 50;
             let particle_size = 4.;
-            let particle_spacing = 12.;
+            let particle_spacing = 4.;
 
             for i in 0..particle_count {
                 let x = (i % particle_per_row) as f32 * particle_spacing
@@ -47,7 +47,7 @@ pub fn spawn_fluid_container(
                     Mesh2d(meshes.add(Rectangle::new(particle_size, particle_size))),
                     MeshMaterial2d(materials.add(Color::srgb(1., 1., 1.))),
                     Transform::from_xyz(x, y, 10.),
-                    Velocity(Vec2::new(-20., 0.)),
+                    Velocity(Vec2::new(0., 0.)),
                 ));
             }
         });
@@ -79,6 +79,8 @@ pub fn simulate_fluid_mechanics(
             .collect::<Vec<_>>();
 
         sim.particles_to_grid(particles);
+
+        sim.project_pressure();
 
         for child in children {
             if let Ok((mut velocity, transform)) = particles_query.get_mut(*child) {
