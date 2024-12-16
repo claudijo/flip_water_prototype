@@ -94,19 +94,19 @@ impl StaggeredGrid {
         );
     }
 
-    pub fn advect(&self, point: Vec2) -> Option<Vec2> {
+    pub fn interpolate_velocity(&self, point: Vec2) -> Option<Vec2> {
         let (i, j) = self.floor(point);
         if i < 0 || i >= self.cols as i32 || j < 0 || j >= self.rows as i32 {
             return None;
         }
 
         Some(Vec2::new(
-            self.advect_horizontal_velocity(point),
-            self.advect_vertical_velocity(point),
+            self.interpolate_horizontal_velocity(point),
+            self.interpolate_vertical_velocity(point),
         ))
     }
 
-    fn advect_horizontal_velocity(&self, point: Vec2) -> f32 {
+    fn interpolate_horizontal_velocity(&self, point: Vec2) -> f32 {
         let shifted_point = point - Vec2::new(0., self.cell_spacing / 2.);
         let weights = self.corner_weights(shifted_point);
         let (i, j) = self.floor(shifted_point);
@@ -117,7 +117,7 @@ impl StaggeredGrid {
         + Self::get_velocity_component(i, j+1, &self.horizontal_velocities, weights[3]).unwrap_or(0.)
     }
 
-    fn advect_vertical_velocity(&self, point: Vec2) -> f32 {
+    fn interpolate_vertical_velocity(&self, point: Vec2) -> f32 {
         let shifted_point = point - Vec2::new( self.cell_spacing / 2., 0.);
         let weights = self.corner_weights(shifted_point);
         let (i, j) = self.floor(shifted_point);

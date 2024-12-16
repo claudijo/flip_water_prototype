@@ -67,11 +67,13 @@ impl FluidSimulator {
 
         self.0.normalize_velocities();
 
+        // TODO: Store normalized velocities (for FLIP implementation)
+
         self.0.set_boundary_velocities();
     }
 
     pub fn grid_to_particle(&self, point: Vec2) -> Option<Vec2> {
         let point = point - self.0.offset;
-        self.0.advect(point)
+        self.0.interpolate_velocity(point)
     }
 }
