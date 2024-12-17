@@ -1,9 +1,9 @@
-use std::ops::Neg;
 use crate::pic_flip::components::{FluidSimulator, Velocity};
 use crate::pic_flip::resources::Gravity;
 use crate::pic_flip::staggered_grid::{CellType, StaggeredGrid};
 use bevy::color::palettes::basic::{AQUA, BLUE, GREEN, MAROON, RED};
 use bevy::prelude::*;
+use std::ops::Neg;
 
 pub fn spawn_fluid_container(
     mut commands: Commands,
@@ -28,21 +28,21 @@ pub fn spawn_fluid_container(
                     cell_spacing,
                     Vec2::new(-width / 2., -height / 2.),
                 )
-                .with_boundary_cells(),
+                .with_border_cells(),
             ),
             Transform::from_xyz(0., 0., -1.),
             Visibility::default(),
         ))
         .with_children(|parent| {
-            let particle_count = 50 * 50;
-            let particle_per_row = 50;
-            let particle_size = 4.;
-            let particle_spacing = 4.;
+            let particle_count = 40 * 40;
+            let particle_per_row = 40;
+            let particle_size = 2.;
+            let particle_spacing = 6.;
 
             for i in 0..particle_count {
                 let x = (i % particle_per_row) as f32 * particle_spacing
                     - particle_per_row as f32 * particle_spacing / 2.;
-                let y = (i / particle_per_row) as f32 * particle_spacing;
+                let y = (i / particle_per_row) as f32 * particle_spacing - 100.;
 
                 parent.spawn((
                     Mesh2d(meshes.add(Rectangle::new(particle_size, particle_size))),
@@ -86,7 +86,10 @@ pub fn simulate_fluid_mechanics(
         for child in children {
             if let Ok((mut velocity, mut transform)) = particles_query.get_mut(*child) {
                 // Check that particle is withing boundaries. If not place it inside
-                transform.translation = transform.translation.clamp(sim.offset().extend(f32::NEG_INFINITY), sim.offset().neg().extend(f32::INFINITY));
+                transform.translation = transform.translation.clamp(
+                    sim.offset().extend(f32::NEG_INFINITY),
+                    sim.offset().neg().extend(f32::INFINITY),
+                );
 
                 if let Some(adjusted_velocity) = sim.grid_to_particle(transform.translation.xy()) {
                     velocity.0 = adjusted_velocity;

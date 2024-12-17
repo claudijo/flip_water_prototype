@@ -22,7 +22,7 @@ impl FluidSimulator {
     }
 
     pub fn cell_spacing(&self) -> f32 {
-        self.0.cell_spacing
+        self.0.spacing
     }
 
     pub fn cell_type(&self, i: i32, j: i32) -> Option<&CellType> {
@@ -55,7 +55,7 @@ impl FluidSimulator {
     pub fn particles_to_grid(&mut self, velocities_points: Vec<(Vec2, Vec2)>) {
         self.reset();
 
-        if self.0.with_boundary_cells {
+        if self.0.border {
             self.0.set_boundary_cells_to_solid();
         }
 
