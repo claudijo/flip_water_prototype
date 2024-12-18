@@ -41,7 +41,7 @@ pub fn spawn_fluid_container(
         .with_children(|parent| {
             let particle_count = 40 * 40;
             let particle_per_row = 40;
-            let particle_size = PARTICLE_RADIUS * 2.;
+            let particle_size = PARTICLE_RADIUS;
             let particle_spacing = 6.;
 
             for i in 0..particle_count {
@@ -85,8 +85,6 @@ pub fn simulate_fluid_mechanics(
 
         sim.particles_to_grid(particles);
 
-        sim.project_pressure();
-
         let min_distance = 2. * PARTICLE_RADIUS;
         let min_distance_squared = min_distance * min_distance;
 
@@ -113,10 +111,12 @@ pub fn simulate_fluid_mechanics(
                         continue;
                     }
 
-                    if let Ok((_, transform)) = particles_query.get(Entity::from_raw(second_index)) {
+                    if let Ok((_, transform)) = particles_query.get(Entity::from_raw(second_index))
+                    {
                         let second_point = transform.translation.xy();
                         let distance_squared = first_point.distance_squared(second_point);
-                        if distance_squared <= f32::EPSILON || distance_squared >= min_distance_squared
+                        if distance_squared <= f32::EPSILON
+                            || distance_squared >= min_distance_squared
                         {
                             continue;
                         }
@@ -146,8 +146,8 @@ pub fn simulate_fluid_mechanics(
             if let Ok((mut velocity, mut transform)) = particles_query.get_mut(*child) {
                 // Ensure particles are inside boundary
                 transform.translation = transform.translation.clamp(
-                    sim.offset().extend(f32::NEG_INFINITY) + Vec3::splat(10.),
-                    sim.offset().neg().extend(f32::INFINITY) - Vec3::splat(10.),
+                    sim.offset().extend(f32::NEG_INFINITY) ,
+                    sim.offset().neg().extend(f32::INFINITY) ,
                 );
 
                 // Adjust particles velocity
@@ -156,8 +156,6 @@ pub fn simulate_fluid_mechanics(
                 }
             }
         }
-
-
     }
 }
 

@@ -32,7 +32,7 @@ impl StaggeredGrid {
             cols,
             rows,
             cell_types: Grid::new(cols, rows),
-            pressures: Grid::new(cols, rows),
+            pressures: Grid::new(cols + 1, rows + 1),
             horizontal_velocities: Grid::new(cols + 1, rows),
             sum_horizontal_weights: Grid::new(cols + 1, rows),
             normalized_horizontal_velocities: Grid::new(cols + 1, rows),
@@ -87,6 +87,22 @@ impl StaggeredGrid {
         self.splat_vertical_velocity(velocity.y, point);
     }
 
+    fn update_pressure(&mut self, i: i32, j: i32, weight: f32) {
+        if let Some(pressure) = self.pressures.get_at_mut(i, j) {
+            *pressure += weight;
+        }
+    }
+
+    pub fn splat_density(&mut self, point: Vec2) {
+        let weights = self.corner_weights(point);
+        let (i, j) = self.floor(point);
+
+        self.update_pressure(i, j, weights[0]);
+        self.update_pressure(i + 1, j, weights[1]);
+        self.update_pressure(i + 1, j + 1, weights[2]);
+        self.update_pressure(i, j + 1, weights[3]);
+    }
+
     pub fn normalize_velocities(&mut self) {
         StaggeredGrid::normalize_velocity_components(
             &mut self.horizontal_velocities,
@@ -129,13 +145,23 @@ impl StaggeredGrid {
         ))
     }
 
-    pub fn project_pressure(&mut self, iterations: usize, over_relaxation: f32) {
+    pub fn project_pressure(
+        &mut self,
+        iterations: usize,
+        over_relaxation: f32,
+        stiffness_coefficient: f32,
+        water_cell_average_density: f32,
+    ) {
         let cols = self.cell_types.cols();
+
         for _ in 0..iterations {
             for (i, cell_type) in self.cell_types.iter().enumerate() {
                 if *cell_type == CellType::FLUID {
                     let (i, j) = ((i % cols) as i32, (i / cols) as i32);
-                    let divergence = over_relaxation * self.divergence(i, j);
+
+                    let divergence = over_relaxation * self.divergence(i, j)
+                        - stiffness_coefficient
+                            * (self.pressure(i, j) - water_cell_average_density);
                     let non_solid_neighbours_count = self.non_solid_neighbours_count(i, j);
 
                     let s1 = self.contribute_to_solid_cell_count(i - 1, j);
@@ -184,6 +210,14 @@ impl StaggeredGrid {
             - self.horizontal_velocities.get_at(i, j).unwrap_or(&0.)
             + self.vertical_velocities.get_at(i, j + 1).unwrap_or(&0.)
             - self.vertical_velocities.get_at(i, j).unwrap_or(&0.)
+    }
+
+    fn pressure(&self, i: i32, j: i32) -> f32 {
+        (self.pressures.get_at(i, j).unwrap_or(&0.)
+            + self.pressures.get_at(i + 1, j).unwrap_or(&0.)
+            + self.pressures.get_at(i + 1, j + 1).unwrap_or(&0.)
+            + self.pressures.get_at(i, j + 1).unwrap_or(&0.))
+            * 0.25
     }
 
     fn interpolate_horizontal_velocity(&self, point: Vec2) -> f32 {
