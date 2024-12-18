@@ -146,8 +146,8 @@ pub fn simulate_fluid_mechanics(
             if let Ok((mut velocity, mut transform)) = particles_query.get_mut(*child) {
                 // Ensure particles are inside boundary
                 transform.translation = transform.translation.clamp(
-                    sim.offset().extend(f32::NEG_INFINITY) ,
-                    sim.offset().neg().extend(f32::INFINITY) ,
+                    sim.offset().extend(f32::NEG_INFINITY),
+                    sim.offset().neg().extend(f32::INFINITY),
                 );
 
                 // Adjust particles velocity

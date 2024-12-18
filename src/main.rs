@@ -4,8 +4,10 @@
 // Feel free to delete this line.
 #![allow(clippy::too_many_arguments, clippy::type_complexity)]
 
+mod liquid_simulator;
 mod pic_flip;
 
+use crate::liquid_simulator::LiquidSimulatorPlugin;
 use crate::pic_flip::PicFlipPlugin;
 use bevy::asset::AssetMetaCheck;
 use bevy::prelude::*;
@@ -20,9 +22,8 @@ fn main() {
             ..default()
         }))
         .add_systems(Startup, setup)
-        // .add_plugins(FlipPlugin)
-        // .add_plugins(FlopPlugin)
-        .add_plugins(PicFlipPlugin)
+        // .add_plugins(PicFlipPlugin)
+        .add_plugins(LiquidSimulatorPlugin)
         .run();
 }
 
