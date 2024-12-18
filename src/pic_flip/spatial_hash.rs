@@ -88,7 +88,6 @@ impl<T: Debug + Default + Copy + Clone + Hash + Eq + PartialEq> SpatialHash<T> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::time::Instant;
 
     #[test]
     fn indices() {
@@ -102,7 +101,7 @@ mod tests {
 
         let entities = vec![(one, 1), (two, 2), (three, 3), (four, 4), (five, 5)];
 
-        hash.populate(entities);
+        hash.populate(&entities);
 
         assert_eq!(hash.index(four), 2);
         assert_eq!(hash.index(two), 2);
@@ -140,7 +139,7 @@ mod tests {
 
         let entities = vec![(one, 1), (two, 2), (three, 3), (four, 4), (five, 5)];
 
-        hash.populate(entities);
+        hash.populate(&entities);
 
         // (15, 15)
         assert!(hash.query(Vec2::new(15., 5.), 10.).contains(&4));
