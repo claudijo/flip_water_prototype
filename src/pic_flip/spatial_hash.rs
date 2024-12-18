@@ -1,7 +1,7 @@
 use bevy::prelude::*;
 use std::collections::HashSet;
 use std::fmt::Debug;
-use std::hash::Hash;
+use std::hash::{DefaultHasher, Hash, Hasher};
 
 #[derive(Debug)]
 pub struct SpatialHash<T> {
@@ -39,7 +39,7 @@ impl<T: Debug + Default + Copy + Clone + Hash + Eq + PartialEq> SpatialHash<T> {
         (i, j)
     }
 
-    pub fn populate(&mut self, entries: Vec<(Vec2, T)>) {
+    pub fn populate(&mut self, entries: &Vec<(Vec2, T)>) {
         let num_object = entries.len().min(self.entries.len());
 
         self.starts.fill(usize::default());

@@ -1,9 +1,14 @@
+use crate::pic_flip::collisions::Collision;
 use crate::pic_flip::components::{FluidSimulator, Velocity};
 use crate::pic_flip::resources::Gravity;
+use crate::pic_flip::spatial_hash::SpatialHash;
 use crate::pic_flip::staggered_grid::{CellType, StaggeredGrid};
 use bevy::color::palettes::basic::{AQUA, BLUE, GREEN, MAROON, RED};
 use bevy::prelude::*;
+use std::collections::HashSet;
 use std::ops::Neg;
+
+const PARTICLE_RADIUS: f32 = 2.;
 
 pub fn spawn_fluid_container(
     mut commands: Commands,
@@ -36,7 +41,7 @@ pub fn spawn_fluid_container(
         .with_children(|parent| {
             let particle_count = 40 * 40;
             let particle_per_row = 40;
-            let particle_size = 2.;
+            let particle_size = PARTICLE_RADIUS * 2.;
             let particle_spacing = 6.;
 
             for i in 0..particle_count {
@@ -68,7 +73,6 @@ pub fn integrate_particles(
 pub fn simulate_fluid_mechanics(
     mut sim_query: Query<(&mut FluidSimulator, &Children)>,
     mut particles_query: Query<(&mut Velocity, &mut Transform)>,
-    time: Res<Time>,
 ) {
     for (mut sim, children) in &mut sim_query {
         let particles = children
@@ -83,19 +87,77 @@ pub fn simulate_fluid_mechanics(
 
         sim.project_pressure();
 
+        let min_distance = 2. * PARTICLE_RADIUS;
+        let min_distance_squared = min_distance * min_distance;
+
+        for _ in 0..1 {
+            // Push particles apart
+            let particles = children
+                .iter()
+                .filter_map(|entity| {
+                    let (velocity, transform) = particles_query.get(*entity).ok()?;
+                    Some((transform.translation.xy(), entity.index()))
+                })
+                .collect::<Vec<_>>();
+
+            let mut spatial_hash = SpatialHash::new(4., particles.len());
+            spatial_hash.populate(&particles);
+
+            let mut collisions: HashSet<Collision> = HashSet::new();
+
+            for (first_point, first_index) in particles {
+                let potential_collisions = spatial_hash.query(first_point, min_distance);
+
+                for second_index in potential_collisions {
+                    if first_index == second_index {
+                        continue;
+                    }
+
+                    if let Ok((_, transform)) = particles_query.get(Entity::from_raw(second_index)) {
+                        let second_point = transform.translation.xy();
+                        let distance_squared = first_point.distance_squared(second_point);
+                        if distance_squared <= f32::EPSILON || distance_squared >= min_distance_squared
+                        {
+                            continue;
+                        }
+
+                        collisions.insert(Collision {
+                            first_entity: Entity::from_raw(first_index),
+                            second_entity: Entity::from_raw(second_index),
+                            normal: (second_point - first_point).normalize(),
+                            depth: min_distance - distance_squared.sqrt(),
+                        });
+                    }
+                }
+            }
+
+            for collision in &collisions {
+                if let Ok((_, mut transform)) = particles_query.get_mut(collision.first_entity) {
+                    transform.translation -= (collision.normal * collision.depth * 0.5).extend(0.);
+                }
+
+                if let Ok((_, mut transform)) = particles_query.get_mut(collision.second_entity) {
+                    transform.translation += (collision.normal * collision.depth * 0.5).extend(0.);
+                }
+            }
+        }
+
         for child in children {
             if let Ok((mut velocity, mut transform)) = particles_query.get_mut(*child) {
-                // Check that particle is withing boundaries. If not place it inside
+                // Ensure particles are inside boundary
                 transform.translation = transform.translation.clamp(
-                    sim.offset().extend(f32::NEG_INFINITY),
-                    sim.offset().neg().extend(f32::INFINITY),
+                    sim.offset().extend(f32::NEG_INFINITY) + Vec3::splat(10.),
+                    sim.offset().neg().extend(f32::INFINITY) - Vec3::splat(10.),
                 );
 
+                // Adjust particles velocity
                 if let Some(adjusted_velocity) = sim.grid_to_particle(transform.translation.xy()) {
                     velocity.0 = adjusted_velocity;
                 }
             }
         }
+
+
     }
 }
 

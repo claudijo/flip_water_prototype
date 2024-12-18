@@ -4,6 +4,7 @@ use crate::pic_flip::systems::{
 };
 use bevy::prelude::*;
 
+mod collisions;
 mod components;
 mod grid;
 mod resources;
