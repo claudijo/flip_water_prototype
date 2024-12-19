@@ -8,6 +8,16 @@ pub struct Grid<T> {
     data: Vec<T>,
 }
 
+impl<T: Debug + Default + Clone> Clone for Grid<T> {
+    fn clone(&self) -> Self {
+        Self {
+            cols: self.cols,
+            rows: self.rows,
+            data: self.data.clone(),
+        }
+    }
+}
+
 impl<T: Debug + Default + Clone> Grid<T> {
     pub fn new(cols: usize, rows: usize) -> Self {
         Self {
@@ -17,10 +27,13 @@ impl<T: Debug + Default + Clone> Grid<T> {
         }
     }
 
-    pub fn reset(&mut self) {
-        for mut item in &mut self.data {
-            *item = T::default();
-        }
+    pub fn with_default_value(mut self, value: T) -> Self {
+        self.data.fill(value);
+        self
+    }
+
+    pub fn fill(&mut self, value: T) {
+        self.data.fill(value);
     }
 
     pub fn cols(&self) -> usize {

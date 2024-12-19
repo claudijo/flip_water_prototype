@@ -36,12 +36,14 @@ pub fn spawn_tank(
             Transform::from_xyz(0., 0., -1.),
             Visibility::default(),
             LiquidSimulator::new(
-                width,
-                height,
                 particle_positions,
                 PARTICLE_RADIUS,
                 Vec2::new(-width / 2., -height / 2.),
-            ),
+                COLS,
+                ROWS,
+                CELL_SPACING,
+            )
+            .with_solid_border_cells(),
         ))
         .with_children(|parent| {
             for _ in 0..PARTICLE_COUNT {

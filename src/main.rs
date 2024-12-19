@@ -7,7 +7,7 @@
 mod liquid_simulator;
 mod pic_flip;
 
-use crate::liquid_simulator::LiquidSimulatorPlugin;
+use crate::liquid_simulator::{LiquidSimulationDebugPlugin, LiquidSimulatorPlugin};
 use crate::pic_flip::PicFlipPlugin;
 use bevy::asset::AssetMetaCheck;
 use bevy::prelude::*;
@@ -24,6 +24,7 @@ fn main() {
         .add_systems(Startup, setup)
         // .add_plugins(PicFlipPlugin)
         .add_plugins(LiquidSimulatorPlugin)
+        .add_plugins(LiquidSimulationDebugPlugin)
         .run();
 }
 
