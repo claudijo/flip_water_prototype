@@ -1,6 +1,6 @@
-use std::fmt::Debug;
 use bevy::prelude::*;
 use bevy::render::render_resource::encase::private::RuntimeSizedArray;
+use std::fmt::Debug;
 
 pub struct SpatialHash {
     cols: usize,
@@ -8,10 +8,19 @@ pub struct SpatialHash {
     spacing: f32,
     offset: Vec2,
     starts: Vec<usize>,
-    entries: Vec<usize>
+    entries: Vec<usize>,
 }
 
 impl SpatialHash {
+    pub fn from_sizes(width: f32, height: f32, particle_radius: f32) -> Self {
+        let particle_size = particle_radius * 2.;
+        Self::new(
+            (width / particle_size) as usize + 1,
+            (height / particle_size) as usize + 1,
+            particle_size,
+        )
+    }
+
     pub fn new(cols: usize, rows: usize, spacing: f32) -> Self {
         Self {
             cols,
@@ -28,12 +37,12 @@ impl SpatialHash {
         self
     }
 
-    pub fn populate(&mut self, points: Vec<Vec2>)  {
+    pub fn populate(&mut self, points: &Vec<Vec2>) {
         self.starts = vec![usize::default(); self.cols * self.rows + 1];
         self.entries = vec![usize::default(); points.len()];
 
-        for point in &points {
-            let i = self.index_from_point(*point + self.offset);
+        for point in points {
+            let i = self.index_from_point(*point - self.offset);
             self.starts[i] += 1;
         }
 
@@ -44,15 +53,15 @@ impl SpatialHash {
         }
 
         for (entry, point) in points.iter().enumerate() {
-            let i = self.index_from_point(*point + self.offset);
+            let i = self.index_from_point(*point - self.offset);
             self.starts[i] -= 1;
             self.entries[self.starts[i]] = entry;
         }
     }
 
     pub fn query(&self, point: Vec2) -> Vec<usize> {
-        let (i_low, j_low) = self.coords_from_point(point + self.offset - self.spacing);
-        let (i_high, j_high) = self.coords_from_point(point + self.offset + self.spacing);
+        let (i_low, j_low) = self.coords_from_point(point - self.offset - self.spacing);
+        let (i_high, j_high) = self.coords_from_point(point - self.offset + self.spacing);
 
         let mut results = vec![];
 
@@ -84,7 +93,7 @@ impl SpatialHash {
     }
 
     fn index_from_point(&self, point: Vec2) -> usize {
-        let (i,j) = self.coords_from_point(point);
+        let (i, j) = self.coords_from_point(point);
         self.index_from_coords(i, j)
     }
 }
@@ -94,29 +103,55 @@ mod tests {
     use super::*;
 
     #[test]
-    fn query_works() {
+    fn query_hash_without_offset() {
         let mut hash = SpatialHash::new(4, 3, 10.);
-        hash.populate(vec![
-           Vec2::new(15., 25.),
-           Vec2::new(25., 5.),
-           Vec2::new(35., 25.),
-           Vec2::new(24., 6.),
-           Vec2::new(16., 24.),
+        hash.populate(&vec![
+            Vec2::new(15., 25.),
+            Vec2::new(25., 5.),
+            Vec2::new(35., 25.),
+            Vec2::new(24., 6.),
+            Vec2::new(16., 24.),
         ]);
 
         assert!(hash.query(Vec2::new(5., 5.)).is_empty());
-        assert_eq!(hash.query(Vec2::new(15., 5.)), vec![3,1]);
-        assert_eq!(hash.query(Vec2::new(25., 5.)), vec![3,1]);
-        assert_eq!(hash.query(Vec2::new(35., 5.)), vec![3,1]);
+        assert_eq!(hash.query(Vec2::new(15., 5.)), vec![3, 1]);
+        assert_eq!(hash.query(Vec2::new(25., 5.)), vec![3, 1]);
+        assert_eq!(hash.query(Vec2::new(35., 5.)), vec![3, 1]);
 
-        assert_eq!(hash.query(Vec2::new(5., 15.)), vec![4,0]);
-        assert_eq!(hash.query(Vec2::new(15., 15.)), vec![4,0, 3, 1]);
-        assert_eq!(hash.query(Vec2::new(25., 15.)), vec![4, 0, 3,1, 2]);
-        assert_eq!(hash.query(Vec2::new(35., 15.)), vec![3,1, 2]);
+        assert_eq!(hash.query(Vec2::new(5., 15.)), vec![4, 0]);
+        assert_eq!(hash.query(Vec2::new(15., 15.)), vec![4, 0, 3, 1]);
+        assert_eq!(hash.query(Vec2::new(25., 15.)), vec![4, 0, 3, 1, 2]);
+        assert_eq!(hash.query(Vec2::new(35., 15.)), vec![3, 1, 2]);
 
-        assert_eq!(hash.query(Vec2::new(5., 25.)), vec![4,0]);
-        assert_eq!(hash.query(Vec2::new(15., 25.)), vec![4,0]);
+        assert_eq!(hash.query(Vec2::new(5., 25.)), vec![4, 0]);
+        assert_eq!(hash.query(Vec2::new(15., 25.)), vec![4, 0]);
         assert_eq!(hash.query(Vec2::new(25., 25.)), vec![4, 0, 2]);
         assert_eq!(hash.query(Vec2::new(35., 25.)), vec![2]);
+    }
+
+    #[test]
+    fn query_hash_with_offset() {
+        let mut hash = SpatialHash::from_sizes(40., 30., 5.).with_offset(Vec2::new(-20., -15.));
+        hash.populate(&vec![
+            Vec2::new(-7.5, -10.),
+            Vec2::new(-15., 10.),
+            Vec2::new(5., 10.),
+            Vec2::new(12.5, 10.),
+        ]);
+
+        assert_eq!(hash.query(Vec2::new(-15., -10.)), vec![0]);
+        assert_eq!(hash.query(Vec2::new(-5., -10.)), vec![0]);
+        assert_eq!(hash.query(Vec2::new(5., -10.)), vec![0]);
+        assert_eq!(hash.query(Vec2::new(15., -10.)), vec![] as Vec<usize>);
+
+        assert_eq!(hash.query(Vec2::new(-15., 0.)), vec![1, 0]);
+        assert_eq!(hash.query(Vec2::new(-5., 0.)), vec![1, 0, 2]);
+        assert_eq!(hash.query(Vec2::new(5., 0.)), vec![0, 2, 3]);
+        assert_eq!(hash.query(Vec2::new(15., 0.)), vec![2, 3]);
+
+        assert_eq!(hash.query(Vec2::new(-15., 10.)), vec![1]);
+        assert_eq!(hash.query(Vec2::new(-5., 10.)), vec![1, 2]);
+        assert_eq!(hash.query(Vec2::new(5., 10.)), vec![2, 3]);
+        assert_eq!(hash.query(Vec2::new(15., 10.)), vec![2, 3]);
     }
 }

@@ -1,8 +1,8 @@
 mod components;
 mod demo_systems;
 mod grid;
-mod systems;
 mod spatial_hash;
+mod systems;
 
 use crate::liquid_simulator::demo_systems::{position_liquid_particles, spawn_tank};
 use crate::liquid_simulator::systems::simulate_liquid;

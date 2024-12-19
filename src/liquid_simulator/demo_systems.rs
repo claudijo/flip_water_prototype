@@ -7,7 +7,7 @@ const CELL_SPACING: f32 = 10.;
 const PARTICLE_COUNT: usize = 1600;
 const PARTICLE_PER_ROW: usize = 40;
 const PARTICLE_RADIUS: f32 = 2.;
-const PARTICLE_SPACING: f32 = 6.;
+const PARTICLE_SPACING: f32 = 3.;
 
 pub fn spawn_tank(
     mut commands: Commands,
@@ -35,12 +35,18 @@ pub fn spawn_tank(
             MeshMaterial2d(materials.add(Color::srgb(0.5, 0.5, 0.5))),
             Transform::from_xyz(0., 0., -1.),
             Visibility::default(),
-            LiquidSimulator::new(particle_positions, Vec2::new(-width / 2., -height / 2.)),
+            LiquidSimulator::new(
+                width,
+                height,
+                particle_positions,
+                PARTICLE_RADIUS,
+                Vec2::new(-width / 2., -height / 2.),
+            ),
         ))
         .with_children(|parent| {
             for _ in 0..PARTICLE_COUNT {
                 parent.spawn((
-                    Mesh2d(meshes.add(Rectangle::new(PARTICLE_RADIUS, PARTICLE_RADIUS))),
+                    Mesh2d(meshes.add(Rectangle::from_size(Vec2::splat(PARTICLE_RADIUS * 2.)))),
                     MeshMaterial2d(materials.add(Color::srgb(1., 1., 1.))),
                     LiquidParticle,
                 ));
