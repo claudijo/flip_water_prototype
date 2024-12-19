@@ -43,6 +43,10 @@ impl SpatialHash {
 
         for point in points {
             let i = self.index_from_point(*point - self.offset);
+            if i >= self.starts.len() {
+                continue;
+            }
+
             self.starts[i] += 1;
         }
 
@@ -54,6 +58,10 @@ impl SpatialHash {
 
         for (entry, point) in points.iter().enumerate() {
             let i = self.index_from_point(*point - self.offset);
+            if i >= self.starts.len() {
+                continue;
+            }
+
             self.starts[i] -= 1;
             self.entries[self.starts[i]] = entry;
         }

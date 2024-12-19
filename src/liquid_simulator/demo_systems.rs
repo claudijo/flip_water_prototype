@@ -46,7 +46,7 @@ pub fn spawn_tank(
         .with_children(|parent| {
             for _ in 0..PARTICLE_COUNT {
                 parent.spawn((
-                    Mesh2d(meshes.add(Rectangle::from_size(Vec2::splat(PARTICLE_RADIUS * 2.)))),
+                    Mesh2d(meshes.add(Rectangle::from_size(Vec2::splat(PARTICLE_RADIUS)))),
                     MeshMaterial2d(materials.add(Color::srgb(1., 1., 1.))),
                     LiquidParticle,
                 ));

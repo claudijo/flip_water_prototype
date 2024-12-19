@@ -6,6 +6,8 @@ pub struct LiquidParticle;
 
 #[derive(Component)]
 pub struct LiquidSimulator {
+    pub width: f32,
+    pub height: f32,
     pub offset: Vec2,
     pub particle_positions: Vec<Vec2>,
     pub particle_velocities: Vec<Vec2>,
@@ -24,6 +26,7 @@ impl LiquidSimulator {
         let particle_count = particle_positions.len();
 
         Self {
+            width, height,
             spacial_hash: SpatialHash::from_sizes(width, height, particle_radius)
                 .with_offset(offset),
             offset,
@@ -62,8 +65,6 @@ impl LiquidSimulator {
         for _ in 0..iterations {
             self.spacial_hash.populate(&self.particle_positions);
 
-            let mut collisions = vec![];
-
             for a in 0..self.particle_positions.len() {
                 for b in self.spacial_hash.query(self.particle_positions[a]) {
                     if a == b {
@@ -82,14 +83,38 @@ impl LiquidSimulator {
                     let collision_normal = (second_position - first_position).normalize();
                     let collision_depth = min_distance - distance_squared.sqrt();
 
-                    // self.separate_particles(a, b, collision_normal, collision_depth);
-                    collisions.push((a, b, collision_normal, collision_depth));
+                    self.separate_particles(a, b, collision_normal, collision_depth);
                 }
             }
+        }
+    }
 
-            for collision in collisions {
-                let (a, b, collision_normal, collision_depth) = collision;
-                self.separate_particles(a, b, collision_normal, collision_depth);
+    pub fn handle_particle_collisions(&mut self) {
+        for (point, velocity) in self.particle_positions.iter_mut().zip(self.particle_velocities.iter_mut()) {
+            // Clamp particle positions within boundaries
+            let min_y = self.offset.y + self.particle_radius;
+            let max_y = self.height + self.offset.y - self.particle_radius;
+            let min_x = self.offset.x + self.particle_radius;
+            let max_x = self.width + self.offset.x - self.particle_radius;
+
+            if point.y <  min_y{
+                point.y = min_y;
+                velocity.y = 0.;
+            }
+
+            if point.y >  max_y {
+                point.y = max_y;
+                velocity.y = 0.;
+            }
+
+            if point.x < min_x {
+                point.x = min_x;
+                velocity.x = 0.;
+            }
+
+            if point.x > max_x {
+                point.x = max_x;
+                velocity.x = 0.;
             }
         }
     }
