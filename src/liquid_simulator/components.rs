@@ -27,10 +27,10 @@ pub struct LiquidSimulator {
     pub spacial_hash: SpatialHash,
     pub horizontal_velocities: Grid<f32>,
     pub prev_horizontal_velocities: Grid<f32>,
-    pub sum_horizontal_velocities: Grid<f32>,
+    pub sum_horizontal_weights: Grid<f32>,
     pub vertical_velocities: Grid<f32>,
     pub prev_vertical_velocities: Grid<f32>,
-    pub sum_vertical_velocities: Grid<f32>,
+    pub sum_vertical_weights: Grid<f32>,
     pub cell_types: Grid<CellType>,
     pub s: Grid<f32>, // 0 -> EMPTY or LIQUID , 1 -> Solid
 }
@@ -62,10 +62,10 @@ impl LiquidSimulator {
             particle_radius,
             horizontal_velocities: Grid::new(cols + 1, rows),
             prev_horizontal_velocities: Grid::new(cols + 1, rows),
-            sum_horizontal_velocities: Grid::new(cols + 1, rows),
+            sum_horizontal_weights: Grid::new(cols + 1, rows),
             vertical_velocities: Grid::new(cols, rows + 1),
             prev_vertical_velocities: Grid::new(cols, rows + 1),
-            sum_vertical_velocities: Grid::new(cols, rows + 1),
+            sum_vertical_weights: Grid::new(cols, rows + 1),
             cell_types: Grid::new(cols, rows),
             s: Grid::new(cols, rows).with_default_value(1.),
         }
@@ -180,6 +180,146 @@ impl LiquidSimulator {
         (i as i32, j as i32)
     }
 
+    fn remainder(&self, point: Vec2) -> Vec2 {
+        Vec2::new(point.x % self.spacing, point.y % self.spacing)
+    }
+
+    fn reset_cell_types(&mut self) {
+        for (mut cell_type, s) in self.cell_types.iter_mut().zip(self.s.iter()) {
+            *cell_type = if *s == 0. {
+                CellType::SOLID
+            } else {
+                CellType::EMPTY
+            }
+        }
+    }
+
+    fn mark_occupied_cells_as_fluid(&mut self, point: Vec2) {
+        let (i, j) = self.floor(point);
+        if let Some(mut cell_type) = self.cell_types.get_mut(i, j) {
+            if *cell_type == CellType::EMPTY {
+                *cell_type = CellType::FLUID;
+            }
+        };
+    }
+
+    fn corner_weights(&self, point: Vec2) -> [f32; 4] {
+        let point_remainder = self.remainder(point);
+
+        let x_over_spacing = point_remainder.x / self.spacing;
+        let y_over_spacing = point_remainder.y / self.spacing;
+
+        let one_minus_x_over_spacing = 1. - x_over_spacing;
+        let one_minus_y_over_spacing = 1. - y_over_spacing;
+
+        [
+            one_minus_x_over_spacing * one_minus_y_over_spacing,
+            x_over_spacing * one_minus_y_over_spacing,
+            x_over_spacing * y_over_spacing,
+            one_minus_x_over_spacing * y_over_spacing,
+        ]
+    }
+
+    fn update_velocity_component(
+        i: i32,
+        j: i32,
+        mut velocity_components: &mut Grid<f32>,
+        weight_sums: &mut Grid<f32>,
+        magnitude: f32,
+        weight: f32,
+    ) {
+        if let Some(mut velocity_component) = velocity_components.get_mut(i, j) {
+            *velocity_component += magnitude * weight;
+        }
+
+        if let Some(mut weight_sum) = weight_sums.get_mut(i, j) {
+            *weight_sum += weight;
+        }
+    }
+
+    fn splat_vertical_velocity(&mut self, magnitude: f32, point: Vec2) {
+        let shifted_point = point - Vec2::new(self.spacing / 2., 0.);
+        let weights = self.corner_weights(shifted_point);
+        let (i, j) = self.floor(shifted_point);
+
+        Self::update_velocity_component(
+            i,
+            j,
+            &mut self.vertical_velocities,
+            &mut self.sum_vertical_weights,
+            magnitude,
+            weights[0],
+        );
+        Self::update_velocity_component(
+            i + 1,
+            j,
+            &mut self.vertical_velocities,
+            &mut self.sum_vertical_weights,
+            magnitude,
+            weights[1],
+        );
+        Self::update_velocity_component(
+            i + 1,
+            j + 1,
+            &mut self.vertical_velocities,
+            &mut self.sum_vertical_weights,
+            magnitude,
+            weights[2],
+        );
+        Self::update_velocity_component(
+            i,
+            j + 1,
+            &mut self.vertical_velocities,
+            &mut self.sum_vertical_weights,
+            magnitude,
+            weights[3],
+        );
+    }
+
+    fn splat_horizontal_velocity(&mut self, magnitude: f32, point: Vec2) {
+        let shifted_point = point - Vec2::new(0., self.spacing / 2.);
+        let weights = self.corner_weights(shifted_point);
+        let (i, j) = self.floor(shifted_point);
+
+        Self::update_velocity_component(
+            i,
+            j,
+            &mut self.horizontal_velocities,
+            &mut self.sum_horizontal_weights,
+            magnitude,
+            weights[0],
+        );
+        Self::update_velocity_component(
+            i + 1,
+            j,
+            &mut self.horizontal_velocities,
+            &mut self.sum_horizontal_weights,
+            magnitude,
+            weights[1],
+        );
+        Self::update_velocity_component(
+            i + 1,
+            j + 1,
+            &mut self.horizontal_velocities,
+            &mut self.sum_horizontal_weights,
+            magnitude,
+            weights[2],
+        );
+        Self::update_velocity_component(
+            i,
+            j + 1,
+            &mut self.horizontal_velocities,
+            &mut self.sum_horizontal_weights,
+            magnitude,
+            weights[3],
+        );
+    }
+
+    fn splat_velocities(&mut self, velocity: Vec2, point: Vec2) {
+        self.splat_horizontal_velocity(velocity.x, point);
+        self.splat_vertical_velocity(velocity.y, point);
+    }
+
     pub fn transfer_velocities(&mut self, flip_ratio: Option<f32>) {
         if flip_ratio.is_none() {
             self.prev_horizontal_velocities = self.horizontal_velocities.clone();
@@ -188,26 +328,17 @@ impl LiquidSimulator {
             self.horizontal_velocities.fill(0.);
             self.vertical_velocities.fill(0.);
 
-            // TODO: Check that this is `this.du` and `this.dv` in original code
-            self.sum_vertical_velocities.fill(0.);
-            self.sum_horizontal_velocities.fill(0.);
+            // TODO: Check that this corresponds to `this.du` and `this.dv` in original code
+            self.sum_vertical_weights.fill(0.);
+            self.sum_horizontal_weights.fill(0.);
 
-            for (mut cell_type, s) in self.cell_types.iter_mut().zip(self.s.iter()) {
-                *cell_type = if *s == 0. {
-                    CellType::SOLID
-                } else {
-                    CellType::EMPTY
-                }
-            }
+            self.reset_cell_types();
 
-            for point in &self.particle_positions {
-                let point = point - self.offset;
-                let (i, j) = self.floor(point);
-                if let Some(mut cell_type) = self.cell_types.get_mut(i, j) {
-                    if *cell_type == CellType::EMPTY {
-                        *cell_type = CellType::FLUID;
-                    }
-                };
+            for i in 0..self.particle_positions.len() {
+                let point = self.particle_positions[i] - self.offset;
+                let velocity = self.particle_velocities[i];
+                self.mark_occupied_cells_as_fluid(point);
+                self.splat_velocities(velocity, point);
             }
         }
     }

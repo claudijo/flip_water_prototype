@@ -1,12 +1,12 @@
 use crate::liquid_simulator::components::{LiquidParticle, LiquidSimulator};
 use bevy::prelude::*;
 
-const COLS: usize = 50;
-const ROWS: usize = 40;
-const CELL_SPACING: f32 = 10.;
-const PARTICLE_COUNT: usize = 1600;
-const PARTICLE_PER_ROW: usize = 40;
-const PARTICLE_RADIUS: f32 = 2.;
+const COLS: usize = 10;
+const ROWS: usize = 8;
+const CELL_SPACING: f32 = 50.;
+const PARTICLE_COUNT: usize = 9;
+const PARTICLE_PER_ROW: usize = 3;
+const PARTICLE_RADIUS: f32 = 4.;
 const PARTICLE_SPACING: f32 = 3.;
 
 pub fn spawn_tank(
