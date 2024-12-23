@@ -38,11 +38,11 @@ pub fn spawn_tank(
             LiquidSimulator::new(
                 particle_positions,
                 PARTICLE_RADIUS,
-                Vec2::new(-width / 2., -height / 2.),
                 COLS,
                 ROWS,
                 CELL_SPACING,
             )
+            .with_offset(Vec2::new(-width / 2., -height / 2.))
             .with_solid_border_cells(),
         ))
         .with_children(|parent| {

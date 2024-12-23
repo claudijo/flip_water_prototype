@@ -33,8 +33,12 @@ impl SpatialHash {
     }
 
     pub fn with_offset(mut self, offset: Vec2) -> Self {
-        self.offset = offset;
+        self.set_offset(offset);
         self
+    }
+
+    pub fn set_offset(&mut self, offset: Vec2) {
+        self.offset = offset;
     }
 
     pub fn populate(&mut self, points: &Vec<Vec2>) {
@@ -139,7 +143,9 @@ mod tests {
 
     #[test]
     fn query_hash_with_offset() {
-        let mut hash = SpatialHash::from_sizes(40., 30., 5.).with_offset(Vec2::new(-20., -15.));
+        let mut hash = SpatialHash::from_sizes(40., 30., 5.);
+        hash.set_offset(Vec2::new(-20., -15.));
+
         hash.populate(&vec![
             Vec2::new(-7.5, -10.),
             Vec2::new(-15., 10.),
