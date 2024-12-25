@@ -162,6 +162,7 @@ impl FlipFluid {
             if separate_particles {
                 self.push_particles_apart(num_particle_iters);
             }
+            self.handle_particle_collision();
         }
     }
 
@@ -219,7 +220,8 @@ impl FlipFluid {
 
         // push particles apart
 
-        let min_dist = 4.0 * self.particle_radius;
+        // let min_dist = 2. * self.particle_radius;
+        let min_dist = 4. * self.particle_radius;
         let min_dist_2 = min_dist * min_dist;
 
         for _ in 0..num_iters {
@@ -279,5 +281,46 @@ impl FlipFluid {
                 }
             }
         }
+    }
+
+    fn handle_particle_collision(&mut self) {
+        let h = 1. / self.f_inv_spacing;
+        let r = self.particle_radius;
+        let min_x = h + r;
+        let max_x = (self.f_num_x - 1) as f32 * h - r;
+        let min_y = h + r;
+        let max_y = (self.f_num_y - 1) as f32 * h - r;
+
+
+        for i in 0.. self.num_particles {
+            let mut x = self.particle_pos[2 * i];
+            let mut y = self.particle_pos[2 * i + 1];
+
+            // wall collisions
+            if x < min_x {
+                x = min_x;
+                self.particle_vel[2 * i] = 0.;
+            }
+
+            if x > max_x {
+                x = max_x;
+                self.particle_vel[2 * i] = 0.;
+            }
+
+            if y < min_y {
+                y = min_y;
+                self.particle_vel[2 * i + 1] = 0.;
+            }
+
+            if y > max_y {
+                y = max_y;
+                self.particle_vel[2 * i + 1] = 0.;
+            }
+
+            self.particle_pos[2 * i] = x;
+            self.particle_pos[2 * i + 1] = y;
+        }
+
+
     }
 }
