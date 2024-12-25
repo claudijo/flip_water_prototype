@@ -64,19 +64,15 @@ pub fn move_particles(
 ) {
     for (fluid, children) in &fluid_query {
         for (i, child) in children.iter().enumerate() {
-            let Ok(mut transform) = particle_query.get_mut(*child) else {
-                continue;
-            };
-            transform.translation = fluid.position(i).extend(1.);
+            if let Ok(mut transform) = particle_query.get_mut(*child) {
+                transform.translation = fluid.position(i).extend(1.);
+            }
         }
     }
 }
 
-pub fn simulate_liquid(
-    mut fluid_query: Query<&mut FlipFluid>,
-    time: Res<Time>,
-) {
+pub fn simulate_liquid(mut fluid_query: Query<&mut FlipFluid>, time: Res<Time>) {
     for mut fluid in &mut fluid_query {
-        fluid.simulate(time.delta_secs(), -10., 0.9, 50, 2., true);
+        fluid.simulate(time.delta_secs(), -10., 0.9, 50, 2, 2., true, true);
     }
 }

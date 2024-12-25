@@ -50,7 +50,7 @@ pub struct FlipFluid {
     p_num_cells: usize,
     num_cell_particles: Vec<usize>,
     first_cell_particle: Vec<usize>,
-    cell_particle_ids: Vec<i32>,
+    cell_particle_ids: Vec<usize>,
     num_particles: usize,
 }
 
@@ -65,9 +65,6 @@ impl FlipFluid {
     ) -> Self {
         let f_num_x = (width / spacing).floor() as usize + 1;
         let f_num_y = (height / spacing).floor() as usize + 1;
-
-        println!("f_num_x {:?} f_num_y {:?}", f_num_x, f_num_y);
-
         let h = (width / f_num_x as f32).max(height / f_num_y as f32);
         let f_num_cells = f_num_x * f_num_y;
         let p_inv_spacing = 1. / (2.2 * particle_radius);
@@ -106,7 +103,7 @@ impl FlipFluid {
             p_num_cells,
             num_cell_particles: vec![usize::default(); p_num_cells],
             first_cell_particle: vec![usize::default(); p_num_cells + 1],
-            cell_particle_ids: vec![i32::default(); max_particles],
+            cell_particle_ids: vec![usize::default(); max_particles],
             num_particles: 0,
         }
     }
@@ -152,22 +149,24 @@ impl FlipFluid {
         gravity: f32,
         flip_ratio: f32,
         num_pressure_iters: usize,
+        num_particle_iters: usize,
         over_relaxation: f32,
         compensate_drift: bool,
+        separate_particles: bool,
     ) {
         let num_sub_steps = 1;
         let std = dt / num_sub_steps as f32;
 
         for _ in 0..num_sub_steps {
             self.integrate_particles(std, gravity);
+            if separate_particles {
+                self.push_particles_apart(num_particle_iters);
+            }
         }
     }
 
     pub fn position(&self, i: usize) -> Vec2 {
-        Vec2::new(
-            self.particle_pos[2 * i],
-            self.particle_pos[2 * i + 1],
-        )
+        Vec2::new(self.particle_pos[2 * i], self.particle_pos[2 * i + 1])
     }
 
     fn integrate_particles(&mut self, dt: f32, gravity: f32) {
@@ -175,6 +174,110 @@ impl FlipFluid {
             self.particle_vel[2 * i + 1] += dt * gravity;
             self.particle_pos[2 * i] += self.particle_vel[2 * i] * dt;
             self.particle_pos[2 * i + 1] += self.particle_vel[2 * i + 1] * dt;
+        }
+    }
+
+    fn push_particles_apart(&mut self, num_iters: usize) {
+        let color_diffusion_coeff = 0.001;
+
+        // count particles per cell
+
+        self.num_cell_particles.fill(0);
+
+        for i in 0..self.num_particles {
+            let x = self.particle_pos[2 * i];
+            let y = self.particle_pos[2 * i + 1];
+
+            let xi = ((x * self.p_inv_spacing).floor() as usize).clamp(0, self.p_num_x - 1);
+            let yi = ((y * self.p_inv_spacing).floor() as usize).clamp(0, self.p_num_y - 1);
+            let cell_nr = xi * self.p_num_y + yi;
+            self.num_cell_particles[cell_nr] += 1;
+        }
+
+        // partial sums
+
+        let mut first = 0;
+
+        for i in 0..self.p_num_cells {
+            first += self.num_cell_particles[i];
+            self.first_cell_particle[i] = first;
+        }
+        self.first_cell_particle[self.p_num_cells] = first; // guard
+
+        // fill particles into cells
+
+        for i in 0..self.num_particles {
+            let x = self.particle_pos[2 * i];
+            let y = self.particle_pos[2 * i + 1];
+
+            let xi = ((x * self.p_inv_spacing).floor() as usize).clamp(0, self.p_num_x - 1);
+            let yi = ((y * self.p_inv_spacing).floor() as usize).clamp(0, self.p_num_y - 1);
+            let cell_nr = xi * self.p_num_y + yi;
+            self.first_cell_particle[cell_nr] -= 1;
+            self.cell_particle_ids[self.first_cell_particle[cell_nr]] = i;
+        }
+
+        // push particles apart
+
+        let min_dist = 4.0 * self.particle_radius;
+        let min_dist_2 = min_dist * min_dist;
+
+        for _ in 0..num_iters {
+            for i in 0..self.num_particles {
+                let px = self.particle_pos[2 * i];
+                let py = self.particle_pos[2 * i + 1];
+
+                let pxi = (px * self.p_inv_spacing).floor() as i32;
+                let pyi = (py * self.p_inv_spacing).floor() as i32;
+                let x0 = (pxi - 1).max(0) as usize;
+                let y0 = (pyi - 1).max(0) as usize;
+                let x1 = ((pxi + 1) as usize).min(self.p_num_x - 1);
+                let y1 = ((pyi + 1) as usize).min(self.p_num_y - 1);
+
+                for xi in x0..=x1 {
+                    for yi in y0..=y1 {
+                        let cell_nr = xi * self.p_num_y + yi;
+                        let first = self.first_cell_particle[cell_nr];
+                        let last = self.first_cell_particle[cell_nr + 1];
+                        for j in first..last {
+                            let id = self.cell_particle_ids[j];
+                            if id == i {
+                                continue;
+                            }
+
+                            let qx = self.particle_pos[2 * id];
+                            let qy = self.particle_pos[2 * id + 1];
+
+                            let mut dx = qx - px;
+                            let mut dy = qy - py;
+                            let d2 = dx * dx + dy * dy;
+                            if d2 > min_dist_2 || d2 == 0. {
+                                continue;
+                            }
+                            let d = d2.sqrt();
+                            let s = 0.5 * (min_dist - d) / d;
+                            dx *= s;
+                            dy *= s;
+                            self.particle_pos[2 * i] -= dx;
+                            self.particle_pos[2 * i + 1] -= dy;
+                            self.particle_pos[2 * id] += dx;
+                            self.particle_pos[2 * id + 1] += dy;
+
+                            // diffuse colors
+
+                            for k in 0..3 {
+                                let color0 = self.particle_color[3 * i + k];
+                                let color1 = self.particle_color[3 * id + k];
+                                let color = (color0 + color1) * 0.5;
+                                self.particle_color[3 * i + k] =
+                                    color0 + (color - color0) * color_diffusion_coeff;
+                                self.particle_color[3 * id + k] =
+                                    color1 + (color - color1) * color_diffusion_coeff;
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
 }
