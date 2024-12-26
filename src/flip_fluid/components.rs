@@ -168,6 +168,7 @@ impl FlipFluid {
             }
             self.handle_particle_collision();
             self.transfer_velocities(None);
+            self.update_particle_density();
         }
     }
 
@@ -497,5 +498,64 @@ impl FlipFluid {
                 }
             }
         }
+    }
+
+    fn update_particle_density(&mut self) {
+        let n = self.f_num_y;
+        let h = self.h;
+        let h1 = self.f_inv_spacing;
+        let h2 = 0.5 * h;
+
+        let d = &mut self.particle_density;
+        d.fill(0.);
+
+        for i in 0..self.num_particles {
+            let mut x = self.particle_pos[2 * i];
+            let mut y = self.particle_pos[2 * i + 1];
+
+            x = x.clamp(h, (self.f_num_x - 1) as f32 * h);
+            y = y.clamp(h, (self.f_num_y - 1) as f32 * h);
+
+            let x0 = ((x - h2) * h1).floor();
+            let tx = ((x - h2) - x0 * h) * h1;
+            let x1 = (x0 + 1.).min( self.f_num_x as f32 -2.);
+
+            let y0 = ((y-h2)*h1).floor() ;
+            let ty = ((y - h2) - y0*h) * h1;
+            let y1 = (y0 + 1.).min( self.f_num_y as f32 -2.);
+
+            let sx = 1.0 - tx;
+            let sy = 1.0 - ty;
+
+            if (x0 < self.f_num_x as f32) && (y0 < self.f_num_y as f32) {
+                d[x0 as usize * n + y0 as usize] += sx * sy;
+            }
+            if (x1 < self.f_num_x as f32) && (y0 < self.f_num_y as f32) {
+                d[x1 as usize * n + y0 as usize] += tx * sy;
+            }
+            if (x1 < self.f_num_x as f32) && (y1 < self.f_num_y as f32) {
+                d[x1 as usize * n + y1 as usize] += tx * ty;
+            }
+            if (x0 < self.f_num_x as f32) && (y1 < self.f_num_y as f32) {
+                d[x0 as usize * n + y1 as usize] += sx * ty;
+            }
+        }
+
+        if (self.particle_rest_density == 0.0) {
+            let mut sum = 0.;
+            let mut num_fluid_cells = 0.;
+
+            for i in 0..self.f_num_cells {
+                if self.cell_type[i] == FLUID_CELL {
+                    sum += d[i];
+                    num_fluid_cells += 1.;
+                }
+            }
+
+            if num_fluid_cells > 0. {
+                self.particle_rest_density = sum / num_fluid_cells;
+            }
+        }
+
     }
 }
