@@ -1,15 +1,14 @@
 use crate::flip_fluid::components::{FlipFluid, LiquidParticle};
 use bevy::prelude::*;
 
+const WIDTH: f32 = 500.;
+const HEIGHT: f32 = 600.;
+
 pub fn spawn_tank(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<ColorMaterial>>,
 ) {
-    let width = 500.;
-    let height = 400.;
-
-    let density = 1000.;
     // let sim_height = 3.0;
     // let c_scale = height / sim_height;
     // let sim_width = width / c_scale;
@@ -31,17 +30,18 @@ pub fn spawn_tank(
     //
     // let point_size = 2.0 * r / sim_width * width;
 
+    let density = 1000.;
     let num_x = 50;
     let num_y = 50;
     let max_particles = num_x * num_y;
 
     commands
         .spawn((
-            Mesh2d(meshes.add(Rectangle::new(width, height))),
+            Mesh2d(meshes.add(Rectangle::new(WIDTH, HEIGHT))),
             MeshMaterial2d(materials.add(Color::srgb(0.5, 0.5, 0.5))),
             Transform::from_xyz(0., 0., -1.),
             Visibility::default(),
-            FlipFluid::new(density, 500., 400., 10., 2., max_particles)
+            FlipFluid::new(density, WIDTH, HEIGHT, 10., 2., max_particles)
                 .with_particles(num_x, num_y)
                 .with_solid_border(),
         ))
@@ -49,6 +49,7 @@ pub fn spawn_tank(
             for _ in 0..max_particles {
                 parent.spawn((
                     Mesh2d(meshes.add(Rectangle::from_size(Vec2::splat(4.)))),
+                    // Mesh2d(meshes.add(Circle::new(2.))),
                     MeshMaterial2d(materials.add(Color::srgb(1., 1., 1.))),
                     LiquidParticle,
                 ));
@@ -60,7 +61,7 @@ pub fn move_particles(
     fluid_query: Query<(&FlipFluid, &Children)>,
     mut particle_query: Query<&mut Transform>,
 ) {
-    let offset = Vec2::new(-250., -200.);
+    let offset = Vec2::new(WIDTH * -0.5, HEIGHT * -0.5);
     for (fluid, children) in &fluid_query {
         for (i, child) in children.iter().enumerate() {
             if let Ok(mut transform) = particle_query.get_mut(*child) {
@@ -72,6 +73,6 @@ pub fn move_particles(
 
 pub fn simulate_liquid(mut fluid_query: Query<&mut FlipFluid>, time: Res<Time>) {
     for mut fluid in &mut fluid_query {
-        fluid.simulate(time.delta_secs(), -100., 0.9, 50, 2, 2., true, true);
+        fluid.simulate(time.delta_secs(), -500., 0.9, 100, 2, 1.9, true, true);
     }
 }

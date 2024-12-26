@@ -169,6 +169,8 @@ impl FlipFluid {
             self.handle_particle_collision();
             self.transfer_velocities(None);
             self.update_particle_density();
+            self.solve_incompressibility(num_pressure_iters, std, over_relaxation, compensate_drift);
+            self.transfer_velocities(Some(flip_ratio));
         }
     }
 
@@ -541,7 +543,7 @@ impl FlipFluid {
             }
         }
 
-        if (self.particle_rest_density == 0.0) {
+        if self.particle_rest_density == 0. {
             let mut sum = 0.;
             let mut num_fluid_cells = 0.;
 
@@ -557,5 +559,64 @@ impl FlipFluid {
             }
         }
 
+    }
+
+    fn solve_incompressibility(&mut self, num_iters: usize, dt: f32, over_relaxation: f32, compensate_drift: bool) {
+        self.p.fill(0.);
+        self.prev_u = self.u.clone();
+        self.prev_v = self.v.clone();
+
+        let n = self.f_num_y;
+        let cp = self.density * self.h / dt;
+
+        for i in 0..self.f_num_cells {
+            let u = self.u[i];
+            let v = self.v[i];
+        }
+
+        for iter in 0..num_iters {
+            for i in 1..(self.f_num_x - 1) {
+                for j in 1..(self.f_num_y - 1) {
+                    if self.cell_type[i*n + j] != FLUID_CELL {
+                        continue;
+                    }
+
+                    let center = i * n + j;
+                    let left = (i - 1) * n + j;
+                    let right = (i + 1) * n + j;
+                    let bottom = i * n + j - 1;
+                    let top = i * n + j + 1;
+
+                    let s = self.s[center];
+                    let sx0 = self.s[left];
+                    let sx1 = self.s[right];
+                    let sy0 = self.s[bottom];
+                    let sy1 = self.s[top];
+                    let s = sx0 + sx1 + sy0 + sy1;
+                    if s == 0. {
+                        continue;
+                    }
+
+                    let mut div = self.u[right] - self.u[center] + self.v[top] - self.v[center];
+
+                    if self.particle_rest_density > 0.0 && compensate_drift {
+                        let k = 1.;
+                        let compression = self.particle_density[i*n + j] - self.particle_rest_density;
+                        if compression > 0. {
+                            div = div - k * compression;
+                        }
+
+                        let mut p = -div / s;
+                        p *= over_relaxation;
+                        self.p[center] += cp * p;
+
+                        self.u[center] -= sx0 * p;
+                        self.u[right] += sx1 * p;
+                        self.v[center] -= sy0 * p;
+                        self.v[top] += sy1 * p;
+                    }
+                }
+            }
+        }
     }
 }
