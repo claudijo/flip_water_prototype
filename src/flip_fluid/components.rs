@@ -3,6 +3,10 @@ use bevy::prelude::*;
 #[derive(Component)]
 pub struct LiquidParticle;
 
+const FLUID_CELL: i32 = 0;
+const AIR_CELL: i32 = 1;
+const SOLID_CELL: i32 = 2;
+
 #[derive(Component)]
 pub struct FlipFluid {
     density: f32,
@@ -26,8 +30,8 @@ pub struct FlipFluid {
     du: Vec<f32>,
     dv: Vec<f32>,
 
-    pre_u: Vec<f32>,
-    pre_v: Vec<f32>,
+    prev_u: Vec<f32>,
+    prev_v: Vec<f32>,
 
     // Density
     p: Vec<f32>,
@@ -83,8 +87,8 @@ impl FlipFluid {
             v: vec![f32::default(); f_num_cells],
             du: vec![f32::default(); f_num_cells],
             dv: vec![f32::default(); f_num_cells],
-            pre_u: vec![f32::default(); f_num_cells],
-            pre_v: vec![f32::default(); f_num_cells],
+            prev_u: vec![f32::default(); f_num_cells],
+            prev_v: vec![f32::default(); f_num_cells],
             p: vec![f32::default(); f_num_cells],
             s: vec![1.; f_num_cells], // 1 = fluid (liquid or empty), 0 = solid
             cell_type: vec![i32::default(); f_num_cells],
@@ -163,6 +167,7 @@ impl FlipFluid {
                 self.push_particles_apart(num_particle_iters);
             }
             self.handle_particle_collision();
+            self.transfer_velocities(None);
         }
     }
 
@@ -291,8 +296,7 @@ impl FlipFluid {
         let min_y = h + r;
         let max_y = (self.f_num_y - 1) as f32 * h - r;
 
-
-        for i in 0.. self.num_particles {
+        for i in 0..self.num_particles {
             let mut x = self.particle_pos[2 * i];
             let mut y = self.particle_pos[2 * i + 1];
 
@@ -320,7 +324,178 @@ impl FlipFluid {
             self.particle_pos[2 * i] = x;
             self.particle_pos[2 * i + 1] = y;
         }
+    }
 
+    fn transfer_velocities(&mut self, flip_ratio: Option<f32>) {
+        let to_grid = flip_ratio.is_none();
 
+        let n = self.f_num_y;
+        let h = self.h;
+        let h1 = self.f_inv_spacing;
+        let h2 = 0.5 * h;
+
+        if to_grid {
+            self.prev_u = self.u.clone();
+            self.prev_v = self.v.clone();
+
+            self.du.fill(0.);
+            self.dv.fill(0.);
+            self.u.fill(0.);
+            self.v.fill(0.);
+
+            for i in 0..self.f_num_cells {
+                self.cell_type[i] = if self.s[i] == 0.0 {
+                    SOLID_CELL
+                } else {
+                    AIR_CELL
+                };
+            }
+
+            for i in 0..self.num_particles {
+                let x = self.particle_pos[2 * i];
+                let y = self.particle_pos[2 * i + 1];
+                let xi = ((x * h1).floor() as usize).clamp(0, self.f_num_x - 1);
+                let yi = ((y * h1).floor() as usize).clamp(0, self.f_num_y - 1);
+                let cell_nr = xi * n + yi;
+                if self.cell_type[cell_nr] == AIR_CELL {
+                    self.cell_type[cell_nr] = FLUID_CELL;
+                }
+            }
+        }
+
+        for component in 0..2 {
+            let dx = if component == 0 { 0.0 } else { h2 };
+            let dy = if component == 0 { h2 } else { 0.0 };
+
+            let f = if component == 0 {
+                &mut self.u
+            } else {
+                &mut self.v
+            };
+            let prev_f = if component == 0 {
+                &self.prev_u
+            } else {
+                &self.prev_v
+            };
+            let d = if component == 0 {
+                &mut self.du
+            } else {
+                &mut self.dv
+            };
+
+            for i in 0..self.num_particles {
+                let mut x = self.particle_pos[2 * i];
+                let mut y = self.particle_pos[2 * i + 1];
+
+                x = x.clamp(h, (self.f_num_x as f32 - 1.) * h);
+                y = y.clamp(h, (self.f_num_y as f32 - 1.) * h);
+
+                let x0 = ((x - dx) * h1).floor().min(self.f_num_x as f32 - 2.);
+                let tx = ((x - dx) - x0 * h) * h1;
+                let x1 = (x0 + 1.).min(self.f_num_x as f32 - 2.);
+
+                let y0 = ((y - dy) * h1).floor().min(self.f_num_y as f32 - 2.);
+                let ty = ((y - dy) - y0 * h) * h1;
+                let y1 = (y0 + 1.).min(self.f_num_y as f32 - 2.);
+
+                let sx = 1.0 - tx;
+                let sy = 1.0 - ty;
+
+                let d0 = sx * sy;
+                let d1 = tx * sy;
+                let d2 = tx * ty;
+                let d3 = sx * ty;
+
+                let nr0 = x0 as usize * n + y0 as usize;
+                let nr1 = x1 as usize * n + y0 as usize;
+                let nr2 = x1 as usize * n + y1 as usize;
+                let nr3 = x0 as usize * n + y1 as usize;
+
+                if to_grid {
+                    let pv = self.particle_vel[2 * i + component];
+                    f[nr0] += pv * d0;
+                    d[nr0] += d0;
+                    f[nr1] += pv * d1;
+                    d[nr1] += d1;
+                    f[nr2] += pv * d2;
+                    d[nr2] += d2;
+                    f[nr3] += pv * d3;
+                    d[nr3] += d3;
+                } else {
+                    let offset = if component == 0 { n } else { 1 };
+
+                    let valid0 = if self.cell_type[nr0] != AIR_CELL
+                        || self.cell_type[nr0 - offset] != AIR_CELL
+                    {
+                        1.0
+                    } else {
+                        0.0
+                    };
+                    let valid1 = if self.cell_type[nr1] != AIR_CELL
+                        || self.cell_type[nr1 - offset] != AIR_CELL
+                    {
+                        1.0
+                    } else {
+                        0.0
+                    };
+                    let valid2 = if self.cell_type[nr2] != AIR_CELL
+                        || self.cell_type[nr2 - offset] != AIR_CELL
+                    {
+                        1.0
+                    } else {
+                        0.0
+                    };
+                    let valid3 = if self.cell_type[nr3] != AIR_CELL
+                        || self.cell_type[nr3 - offset] != AIR_CELL
+                    {
+                        1.0
+                    } else {
+                        0.0
+                    };
+
+                    let v = self.particle_vel[2 * i + component];
+                    let d = valid0 * d0 + valid1 * d1 + valid2 * d2 + valid3 * d3;
+
+                    if d > 0. {
+                        let pic_v = (valid0 * d0 * f[nr0]
+                            + valid1 * d1 * f[nr1]
+                            + valid2 * d2 * f[nr2]
+                            + valid3 * d3 * f[nr3])
+                            / d;
+                        let corr = (valid0 * d0 * (f[nr0] - prev_f[nr0])
+                            + valid1 * d1 * (f[nr1] - prev_f[nr1])
+                            + valid2 * d2 * (f[nr2] - prev_f[nr2])
+                            + valid3 * d3 * (f[nr3] - prev_f[nr3]))
+                            / d;
+                        let flip_v = v + corr;
+
+                        self.particle_vel[2 * i + component] =
+                            (1.0 - flip_ratio.unwrap()) * pic_v + flip_ratio.unwrap() * flip_v;
+                    }
+                }
+            }
+
+            if to_grid {
+                for i in 0..f.len() {
+                    if d[i] > 0. {
+                        f[i] /= d[i];
+                    }
+                }
+
+                // restore solid cells
+
+                for i in 0..self.f_num_x {
+                    for j in 0..self.f_num_y {
+                        let solid = self.cell_type[i * n + j] == SOLID_CELL;
+                        if solid || (i > 0 && self.cell_type[(i - 1) * n + j] == SOLID_CELL) {
+                            self.u[i * n + j] = self.prev_u[i * n + j];
+                        }
+                        if solid || (j > 0 && self.cell_type[i * n + j - 1] == SOLID_CELL) {
+                            self.v[i * n + j] = self.prev_v[i * n + j];
+                        }
+                    }
+                }
+            }
+        }
     }
 }
