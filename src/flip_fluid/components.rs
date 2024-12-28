@@ -197,7 +197,6 @@ impl FlipFluid {
     }
 
     fn integrate_particles(&mut self, dt: f32, accel_x: f32, accel_y: f32) {
-        println!("accel_x {:?},  accel_y {:?}", accel_x,accel_y);
         for i in 0..self.num_particles {
             self.particle_vel[2 * i] += dt * accel_x;
             self.particle_vel[2 * i + 1] += dt * accel_y;

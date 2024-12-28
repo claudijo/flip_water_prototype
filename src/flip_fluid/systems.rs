@@ -1,37 +1,18 @@
+use std::ops::Neg;
+use bevy::input::mouse::MouseMotion;
 use crate::flip_fluid::components::{
     FlipFluid, LinearVelocity, LiquidParticle, PrevLinearVelocity, Tank,
 };
 use bevy::prelude::*;
 
-const WIDTH: f32 = 500.;
-const HEIGHT: f32 = 600.;
+const WIDTH: f32 = 100.;
+const HEIGHT: f32 = 200.;
 
 pub fn spawn_tank(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<ColorMaterial>>,
 ) {
-    // let sim_height = 3.0;
-    // let c_scale = height / sim_height;
-    // let sim_width = width / c_scale;
-    // let res = 100.;
-    // let tank_height = 1.0 * sim_height;
-    // let tank_width = 1.0 * sim_width;
-    // let h = tank_height / res;
-    // let rel_water_height = 0.8;
-    // let rel_water_width = 0.6;
-    //
-    // // Compute number of particles
-    // let r = 0.3 * h; // particle radius w.r.t. cell size
-    // let dx = 2.0 * r;
-    // let dy = 3_f32.sqrt() / 2.0 * dx;
-    //
-    // let num_x = ((rel_water_width * tank_width - 2.0 * h - 2.0 * r) / dx).floor() as usize;
-    // let num_y = ((rel_water_height * tank_height - 2.0 * h - 2.0 * r) / dy).floor() as usize;
-    // let max_particles = num_x * num_y;
-    //
-    // let point_size = 2.0 * r / sim_width * width;
-
     let density = 1000.;
     let num_x = 50;
     let num_y = 50;
@@ -43,7 +24,7 @@ pub fn spawn_tank(
             MeshMaterial2d(materials.add(Color::srgb(0.5, 0.5, 0.5))),
             Transform::from_xyz(0., 0., -1.),
             Visibility::default(),
-            FlipFluid::new(density, WIDTH, HEIGHT, 10., 2., max_particles)
+            FlipFluid::new(density, WIDTH, HEIGHT, 4., 0.5, max_particles)
                 .with_particles(num_x, num_y)
                 .with_solid_border(),
             Tank,
@@ -53,8 +34,7 @@ pub fn spawn_tank(
         .with_children(|parent| {
             for _ in 0..max_particles {
                 parent.spawn((
-                    Mesh2d(meshes.add(Rectangle::from_size(Vec2::splat(4.)))),
-                    // Mesh2d(meshes.add(Circle::new(2.))),
+                    Mesh2d(meshes.add(Rectangle::from_size(Vec2::splat(2.)))),
                     MeshMaterial2d(materials.add(Color::srgb(1., 1., 1.))),
                     LiquidParticle,
                 ));
@@ -87,21 +67,24 @@ pub fn simulate_liquid(
         let tank_acceleration = velocity_delta / time.delta_secs();
 
         let gravity = Vec2::NEG_Y * 500.;
-        let acceleration = gravity + if tank_acceleration.is_finite() {tank_acceleration} else {Vec2::ZERO};
+        let acceleration = gravity + if tank_acceleration.is_finite() {tank_acceleration.neg()} else {Vec2::ZERO};
         fluid.simulate(time.delta_secs(), acceleration.x, acceleration.y, 0.9, 100, 2, 1.9, true, true);
     }
 }
 
-pub fn integrate_linear_velocity(
-    mut fluid_query: Query<&mut FlipFluid>,
+pub fn update_linear_velocity(
+    mut evr_motion: EventReader<MouseMotion>,
     mut physics_query: Query<&mut LinearVelocity>,
     time: Res<Time>,
 ) {
-    let velocity_x = time.elapsed_secs().sin() * 160.;
-
     for mut linear_velocity in &mut physics_query {
-        linear_velocity.0 = Vec2::new(velocity_x, 0.);
+        linear_velocity.0 = Vec2::ZERO;
+        for ev in evr_motion.read() {
+            linear_velocity.0 = ev.delta * Vec2::new(1., -1.) / time.delta_secs();
+        }
     }
+
+
 }
 
 pub fn integrate_position(

@@ -2,7 +2,7 @@ mod components;
 mod systems;
 
 use crate::flip_fluid::systems::{
-    integrate_linear_velocity, integrate_position, move_particles, simulate_liquid, spawn_tank,
+    update_linear_velocity, integrate_position, move_particles, simulate_liquid, spawn_tank,
 };
 use bevy::prelude::*;
 
@@ -15,7 +15,7 @@ impl Plugin for FlipFluidPlugin {
         app.add_systems(
             PreUpdate,
             (
-                integrate_linear_velocity,
+                update_linear_velocity,
                 integrate_position,
                 simulate_liquid,
             )
