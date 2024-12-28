@@ -1,9 +1,9 @@
-use std::ops::Neg;
-use bevy::input::mouse::MouseMotion;
 use crate::flip_fluid::components::{
     FlipFluid, LinearVelocity, LiquidParticle, PrevLinearVelocity, Tank,
 };
+use bevy::input::mouse::MouseMotion;
 use bevy::prelude::*;
+use std::ops::Neg;
 
 const WIDTH: f32 = 100.;
 const HEIGHT: f32 = 200.;
@@ -67,8 +67,23 @@ pub fn simulate_liquid(
         let tank_acceleration = velocity_delta / time.delta_secs();
 
         let gravity = Vec2::NEG_Y * 500.;
-        let acceleration = gravity + if tank_acceleration.is_finite() {tank_acceleration.neg()} else {Vec2::ZERO};
-        fluid.simulate(time.delta_secs(), acceleration.x, acceleration.y, 0.9, 100, 2, 1.9, true, true);
+        let acceleration = gravity
+            + if tank_acceleration.is_finite() {
+                tank_acceleration.neg()
+            } else {
+                Vec2::ZERO
+            };
+        fluid.simulate(
+            time.delta_secs(),
+            acceleration.x,
+            acceleration.y,
+            0.9,
+            100,
+            2,
+            1.9,
+            true,
+            true,
+        );
     }
 }
 
@@ -83,8 +98,6 @@ pub fn update_linear_velocity(
             linear_velocity.0 = ev.delta * Vec2::new(1., -1.) / time.delta_secs();
         }
     }
-
-
 }
 
 pub fn integrate_position(
