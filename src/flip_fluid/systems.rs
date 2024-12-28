@@ -1,4 +1,6 @@
-use crate::flip_fluid::components::{FlipFluid, LiquidParticle};
+use crate::flip_fluid::components::{
+    FlipFluid, LinearVelocity, LiquidParticle, PrevLinearVelocity, Tank,
+};
 use bevy::prelude::*;
 
 const WIDTH: f32 = 500.;
@@ -44,6 +46,9 @@ pub fn spawn_tank(
             FlipFluid::new(density, WIDTH, HEIGHT, 10., 2., max_particles)
                 .with_particles(num_x, num_y)
                 .with_solid_border(),
+            Tank,
+            LinearVelocity(Vec2::ZERO),
+            PrevLinearVelocity(Vec2::ZERO),
         ))
         .with_children(|parent| {
             for _ in 0..max_particles {
@@ -71,8 +76,39 @@ pub fn move_particles(
     }
 }
 
-pub fn simulate_liquid(mut fluid_query: Query<&mut FlipFluid>, time: Res<Time>) {
-    for mut fluid in &mut fluid_query {
-        fluid.simulate(time.delta_secs(), -500., 0.9, 100, 2, 1.9, true, true);
+pub fn simulate_liquid(
+    mut fluid_query: Query<(&mut FlipFluid, &mut PrevLinearVelocity, &LinearVelocity)>,
+    time: Res<Time>,
+) {
+    for (mut fluid, mut prev_linear_velocity, linear_velocity) in &mut fluid_query {
+        let velocity_delta = linear_velocity.0 - prev_linear_velocity.0;
+        prev_linear_velocity.0 = linear_velocity.0;
+
+        let tank_acceleration = velocity_delta / time.delta_secs();
+
+        let gravity = Vec2::NEG_Y * 500.;
+        let acceleration = gravity + if tank_acceleration.is_finite() {tank_acceleration} else {Vec2::ZERO};
+        fluid.simulate(time.delta_secs(), acceleration.x, acceleration.y, 0.9, 100, 2, 1.9, true, true);
+    }
+}
+
+pub fn integrate_linear_velocity(
+    mut fluid_query: Query<&mut FlipFluid>,
+    mut physics_query: Query<&mut LinearVelocity>,
+    time: Res<Time>,
+) {
+    let velocity_x = time.elapsed_secs().sin() * 160.;
+
+    for mut linear_velocity in &mut physics_query {
+        linear_velocity.0 = Vec2::new(velocity_x, 0.);
+    }
+}
+
+pub fn integrate_position(
+    mut physics_query: Query<(&mut Transform, &LinearVelocity)>,
+    time: Res<Time>,
+) {
+    for (mut transform, linear_velocity) in &mut physics_query {
+        transform.translation += linear_velocity.0.extend(0.) * time.delta_secs();
     }
 }

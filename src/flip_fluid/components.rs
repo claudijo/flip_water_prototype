@@ -3,6 +3,15 @@ use bevy::prelude::*;
 #[derive(Component)]
 pub struct LiquidParticle;
 
+#[derive(Component)]
+pub struct Tank;
+
+#[derive(Component)]
+pub struct LinearVelocity(pub Vec2);
+
+#[derive(Component)]
+pub struct PrevLinearVelocity(pub Vec2);
+
 const FLUID_CELL: i32 = 0;
 const AIR_CELL: i32 = 1;
 const SOLID_CELL: i32 = 2;
@@ -18,6 +27,8 @@ pub struct FlipFluid {
     // Spacing
     h: f32,
     f_inv_spacing: f32,
+
+    // Total number of cells in staggered grid
     f_num_cells: usize,
 
     // Horizontal velocity
@@ -30,6 +41,7 @@ pub struct FlipFluid {
     du: Vec<f32>,
     dv: Vec<f32>,
 
+    // Previous velocities for Flip algo
     prev_u: Vec<f32>,
     prev_v: Vec<f32>,
 
@@ -150,7 +162,8 @@ impl FlipFluid {
     pub fn simulate(
         &mut self,
         dt: f32,
-        gravity: f32,
+        tank_accel_x: f32,
+        tank_accel_y: f32,
         flip_ratio: f32,
         num_pressure_iters: usize,
         num_particle_iters: usize,
@@ -162,14 +175,19 @@ impl FlipFluid {
         let std = dt / num_sub_steps as f32;
 
         for _ in 0..num_sub_steps {
-            self.integrate_particles(std, gravity);
+            self.integrate_particles(std, tank_accel_x, tank_accel_y);
             if separate_particles {
                 self.push_particles_apart(num_particle_iters);
             }
             self.handle_particle_collision();
             self.transfer_velocities(None);
             self.update_particle_density();
-            self.solve_incompressibility(num_pressure_iters, std, over_relaxation, compensate_drift);
+            self.solve_incompressibility(
+                num_pressure_iters,
+                std,
+                over_relaxation,
+                compensate_drift,
+            );
             self.transfer_velocities(Some(flip_ratio));
         }
     }
@@ -178,9 +196,12 @@ impl FlipFluid {
         Vec2::new(self.particle_pos[2 * i], self.particle_pos[2 * i + 1])
     }
 
-    fn integrate_particles(&mut self, dt: f32, gravity: f32) {
+    fn integrate_particles(&mut self, dt: f32, accel_x: f32, accel_y: f32) {
+        println!("accel_x {:?},  accel_y {:?}", accel_x,accel_y);
         for i in 0..self.num_particles {
-            self.particle_vel[2 * i + 1] += dt * gravity;
+            self.particle_vel[2 * i] += dt * accel_x;
+            self.particle_vel[2 * i + 1] += dt * accel_y;
+
             self.particle_pos[2 * i] += self.particle_vel[2 * i] * dt;
             self.particle_pos[2 * i + 1] += self.particle_vel[2 * i + 1] * dt;
         }
@@ -520,11 +541,11 @@ impl FlipFluid {
 
             let x0 = ((x - h2) * h1).floor();
             let tx = ((x - h2) - x0 * h) * h1;
-            let x1 = (x0 + 1.).min( self.f_num_x as f32 -2.);
+            let x1 = (x0 + 1.).min(self.f_num_x as f32 - 2.);
 
-            let y0 = ((y-h2)*h1).floor() ;
-            let ty = ((y - h2) - y0*h) * h1;
-            let y1 = (y0 + 1.).min( self.f_num_y as f32 -2.);
+            let y0 = ((y - h2) * h1).floor();
+            let ty = ((y - h2) - y0 * h) * h1;
+            let y1 = (y0 + 1.).min(self.f_num_y as f32 - 2.);
 
             let sx = 1.0 - tx;
             let sy = 1.0 - ty;
@@ -558,10 +579,15 @@ impl FlipFluid {
                 self.particle_rest_density = sum / num_fluid_cells;
             }
         }
-
     }
 
-    fn solve_incompressibility(&mut self, num_iters: usize, dt: f32, over_relaxation: f32, compensate_drift: bool) {
+    fn solve_incompressibility(
+        &mut self,
+        num_iters: usize,
+        dt: f32,
+        over_relaxation: f32,
+        compensate_drift: bool,
+    ) {
         self.p.fill(0.);
         self.prev_u = self.u.clone();
         self.prev_v = self.v.clone();
@@ -574,10 +600,10 @@ impl FlipFluid {
             let v = self.v[i];
         }
 
-        for iter in 0..num_iters {
+        for _ in 0..num_iters {
             for i in 1..(self.f_num_x - 1) {
                 for j in 1..(self.f_num_y - 1) {
-                    if self.cell_type[i*n + j] != FLUID_CELL {
+                    if self.cell_type[i * n + j] != FLUID_CELL {
                         continue;
                     }
 
@@ -601,7 +627,8 @@ impl FlipFluid {
 
                     if self.particle_rest_density > 0.0 && compensate_drift {
                         let k = 1.;
-                        let compression = self.particle_density[i*n + j] - self.particle_rest_density;
+                        let compression =
+                            self.particle_density[i * n + j] - self.particle_rest_density;
                         if compression > 0. {
                             div = div - k * compression;
                         }
