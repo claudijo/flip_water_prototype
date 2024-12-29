@@ -1,9 +1,13 @@
+use std::f32::consts::{FRAC_PI_2, PI};
 use crate::flip_fluid::components::{
-    FlipFluid, LinearVelocity, LiquidParticle, PrevLinearVelocity, Tank,
+    AngularVelocity, FlipFluid, LinearVelocity, LiquidParticle, PrevAngularVelocity,
+    PrevLinearVelocity, Tank,
 };
 use bevy::input::mouse::MouseMotion;
 use bevy::prelude::*;
 use std::ops::Neg;
+use bevy::color::palettes::basic::{GREEN, RED, YELLOW};
+use bevy::transform;
 
 const WIDTH: f32 = 100.;
 const HEIGHT: f32 = 200.;
@@ -30,6 +34,8 @@ pub fn spawn_tank(
             Tank,
             LinearVelocity(Vec2::ZERO),
             PrevLinearVelocity(Vec2::ZERO),
+            AngularVelocity(0.),
+            PrevAngularVelocity(0.),
         ))
         .with_children(|parent| {
             for _ in 0..max_particles {
@@ -57,26 +63,30 @@ pub fn move_particles(
 }
 
 pub fn simulate_liquid(
-    mut fluid_query: Query<(&mut FlipFluid, &mut PrevLinearVelocity, &LinearVelocity)>,
+    mut fluid_query: Query<(&mut FlipFluid, &Transform, &mut PrevLinearVelocity, &LinearVelocity)>,
     time: Res<Time>,
+    mut gizmos: Gizmos,
 ) {
-    for (mut fluid, mut prev_linear_velocity, linear_velocity) in &mut fluid_query {
-        let velocity_delta = linear_velocity.0 - prev_linear_velocity.0;
+    for (mut fluid, transform, mut prev_linear_velocity, linear_velocity) in &mut fluid_query {
+        let gravity_angle = (transform.rotation * Vec3::NEG_Y).xy().angle_to(Vec2::NEG_X) ;
+        let gravity_vec = Vec2::from_angle(gravity_angle);
+        let gravity = gravity_vec * 500.;
+
+        let linear_velocity_delta = linear_velocity.0 - prev_linear_velocity.0;
+        let tank_acceleration = linear_velocity_delta / time.delta_secs();
         prev_linear_velocity.0 = linear_velocity.0;
 
-        let tank_acceleration = velocity_delta / time.delta_secs();
-
-        let gravity = Vec2::NEG_Y * 500.;
-        let acceleration = gravity
-            + if tank_acceleration.is_finite() {
-                tank_acceleration.neg()
+        let total_accel =
+            if tank_acceleration.is_finite() {
+                gravity + tank_acceleration.neg()
             } else {
-                Vec2::ZERO
+                gravity
             };
+
         fluid.simulate(
             time.delta_secs(),
-            acceleration.x,
-            acceleration.y,
+            total_accel.x,
+            total_accel.y,
             0.9,
             100,
             2,
@@ -84,7 +94,9 @@ pub fn simulate_liquid(
             true,
             true,
         );
+
     }
+
 }
 
 pub fn update_linear_velocity(
@@ -97,6 +109,22 @@ pub fn update_linear_velocity(
         for ev in evr_motion.read() {
             linear_velocity.0 = ev.delta * Vec2::new(1., -1.) / time.delta_secs();
         }
+    }
+}
+
+pub fn update_angular_velocity(mut physics_query: Query<&mut AngularVelocity>, time: Res<Time>) {
+    for mut angular_velocity in &mut physics_query {
+        angular_velocity.0 = (time.elapsed_secs() * 0.5).sin() * 0.02;
+    }
+}
+
+pub fn integrate_rotation(
+    mut physics_query: Query<(&mut Transform, &AngularVelocity)>,
+    time: Res<Time>,
+) {
+    for (mut transform, angular_velocity) in &mut physics_query {
+        transform.rotate_around(Vec3::new(0., 0., 0.), Quat::from_rotation_z(angular_velocity.0));
+        // transform.rotation *= Quat::from_rotation_z(angular_velocity.0);
     }
 }
 

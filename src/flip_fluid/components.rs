@@ -12,6 +12,12 @@ pub struct LinearVelocity(pub Vec2);
 #[derive(Component)]
 pub struct PrevLinearVelocity(pub Vec2);
 
+#[derive(Component)]
+pub struct AngularVelocity(pub f32);
+
+#[derive(Component)]
+pub struct PrevAngularVelocity(pub f32);
+
 const FLUID_CELL: i32 = 0;
 const AIR_CELL: i32 = 1;
 const SOLID_CELL: i32 = 2;
