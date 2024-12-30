@@ -69,11 +69,12 @@ pub fn simulate_liquid(
         &mut PrevLinearVelocity,
         &LinearVelocity,
         &AngularVelocity,
+        &mut PrevAngularVelocity,
     )>,
     time: Res<Time>,
     mut gizmos: Gizmos,
 ) {
-    for (mut fluid, transform, mut prev_linear_velocity, linear_velocity, angular_velocity) in
+    for (mut fluid, transform, mut prev_linear_velocity, linear_velocity, angular_velocity, mut prev_angular_velocity) in
         &mut fluid_query
     {
         let gravity_angle = (transform.rotation * Vec3::NEG_Y)
@@ -86,7 +87,11 @@ pub fn simulate_liquid(
         let tank_acceleration = linear_velocity_delta / time.delta_secs();
         prev_linear_velocity.0 = linear_velocity.0;
 
-        let total_accel = if tank_acceleration.is_finite() {
+        let angular_velocity_delta = angular_velocity.0 - prev_angular_velocity.0;
+        let angular_acceleration = angular_velocity_delta / time.delta_secs();
+        prev_angular_velocity.0 = angular_velocity.0;
+
+        let linear_acceleration = if tank_acceleration.is_finite() {
             gravity + tank_acceleration.neg()
         } else {
             gravity
@@ -96,8 +101,9 @@ pub fn simulate_liquid(
 
         fluid.simulate(
             time.delta_secs(),
-            total_accel.x,
-            total_accel.y,
+            linear_acceleration.x,
+            linear_acceleration.y,
+            angular_acceleration,
             angular_velocity.0,
             rotation_center.x,
             rotation_center.y,
@@ -127,7 +133,7 @@ pub fn update_linear_velocity(
 
 pub fn update_angular_velocity(mut physics_query: Query<&mut AngularVelocity>, time: Res<Time>) {
     for mut angular_velocity in &mut physics_query {
-        angular_velocity.0 = (time.elapsed_secs() * 0.5).sin() * 0.1;
+        angular_velocity.0 = (time.elapsed_secs() * 0.4).sin() * 4.;
     }
 }
 
@@ -141,7 +147,7 @@ pub fn integrate_rotation(
         //     Quat::from_rotation_z(angular_velocity.0),
         // );
 
-        transform.rotate(Quat::from_rotation_z(angular_velocity.0));
+        transform.rotate(Quat::from_rotation_z(angular_velocity.0 * time.delta_secs()));
     }
 }
 
