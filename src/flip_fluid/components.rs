@@ -1,3 +1,4 @@
+use bevy::color::palettes::basic::YELLOW;
 use bevy::prelude::*;
 
 #[derive(Component)]
@@ -170,18 +171,30 @@ impl FlipFluid {
         dt: f32,
         tank_accel_x: f32,
         tank_accel_y: f32,
+        angular_velocity: f32,
+        rotation_center_x: f32,
+        rotation_center_y: f32,
         flip_ratio: f32,
         num_pressure_iters: usize,
         num_particle_iters: usize,
         over_relaxation: f32,
         compensate_drift: bool,
         separate_particles: bool,
+        gizmos: &mut Gizmos,
     ) {
         let num_sub_steps = 1;
         let std = dt / num_sub_steps as f32;
 
         for _ in 0..num_sub_steps {
-            self.integrate_particles(std, tank_accel_x, tank_accel_y);
+            self.integrate_particles(
+                std,
+                tank_accel_x,
+                tank_accel_y,
+                angular_velocity,
+                rotation_center_x,
+                rotation_center_y,
+                gizmos,
+            );
             if separate_particles {
                 self.push_particles_apart(num_particle_iters);
             }
@@ -202,13 +215,51 @@ impl FlipFluid {
         Vec2::new(self.particle_pos[2 * i], self.particle_pos[2 * i + 1])
     }
 
-    fn integrate_particles(&mut self, dt: f32, accel_x: f32, accel_y: f32) {
+    fn integrate_particles(
+        &mut self,
+        dt: f32,
+        accel_x: f32,
+        accel_y: f32,
+        angular_velocity: f32,
+        rotation_center_x: f32,
+        rotation_center_y: f32,
+        gizmos: &mut Gizmos,
+    ) {
+        let angular_velocity_2 = angular_velocity * angular_velocity;
+
         for i in 0..self.num_particles {
-            self.particle_vel[2 * i] += dt * accel_x;
-            self.particle_vel[2 * i + 1] += dt * accel_y;
+
+            let dx = rotation_center_x - self.particle_pos[2 * i];
+            let dy = rotation_center_y - self.particle_pos[2 * i + 1];
+            let r = (dx * dx + dy * dy).sqrt();
+
+            let centripetal_accel_x = angular_velocity_2 * r * dx;
+            let centripetal_accel_y = angular_velocity_2 * r * dy;
+
+            self.particle_vel[2 * i] += dt * (accel_x);
+            self.particle_vel[2 * i + 1] += dt * (accel_y);
+
+
+            self.particle_vel[2 * i] += dt * (centripetal_accel_x * 10.);
+            self.particle_vel[2 * i + 1] += dt * (-centripetal_accel_y * 10.);
+
 
             self.particle_pos[2 * i] += self.particle_vel[2 * i] * dt;
             self.particle_pos[2 * i + 1] += self.particle_vel[2 * i + 1] * dt;
+
+
+            // let offset = Vec2::new(-rotation_center_x, -rotation_center_y);
+            // let pos = Vec2::new(self.particle_pos[2 * i],  self.particle_pos[2 * i + 1]);
+            // let start = offset + pos;
+            // let end = Vec2::new(centripetal_accel_x, centripetal_accel_y);
+
+            // gizmos.arrow_2d(
+            //     start,
+            //     start + end,
+            //     YELLOW,
+            // );
+            //
+            // println!("Particle local pos {:?} {:?}",  self.particle_pos[2 * i],self.particle_pos[2 * i + 1] );
         }
     }
 
