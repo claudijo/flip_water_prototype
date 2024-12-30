@@ -2,15 +2,12 @@ use crate::flip_fluid::components::{
     AngularVelocity, FlipFluid, LinearVelocity, LiquidParticle, PrevAngularVelocity,
     PrevLinearVelocity, Tank,
 };
-use bevy::color::palettes::basic::{GREEN, RED, YELLOW};
 use bevy::input::mouse::MouseMotion;
 use bevy::prelude::*;
-use bevy::transform;
-use std::f32::consts::{FRAC_PI_2, PI};
 use std::ops::Neg;
 
-const WIDTH: f32 = 100.;
-const HEIGHT: f32 = 200.;
+const WIDTH: f32 = 30.;
+const HEIGHT: f32 = 50.;
 
 pub fn spawn_tank(
     mut commands: Commands,
@@ -18,17 +15,19 @@ pub fn spawn_tank(
     mut materials: ResMut<Assets<ColorMaterial>>,
 ) {
     let density = 1000.;
-    let num_x = 50;
-    let num_y = 100;
+    let num_x = 20;
+    let num_y = 20;
     let max_particles = num_x * num_y;
+
+    let a = materials.add(Color::srgb(0.3, 0.3, 0.3));
 
     commands
         .spawn((
             Mesh2d(meshes.add(Rectangle::new(WIDTH, HEIGHT))),
-            MeshMaterial2d(materials.add(Color::srgb(0.5, 0.5, 0.5))),
+            MeshMaterial2d(materials.add(Color::srgb(0.4, 0.4, 0.4))),
             Transform::from_xyz(0., 0., -1.),
             Visibility::default(),
-            FlipFluid::new(density, WIDTH, HEIGHT, 4., 0.5, max_particles)
+            FlipFluid::new(density, WIDTH, HEIGHT, 2., 0.4, max_particles)
                 .with_particles(num_x, num_y)
                 .with_solid_border(),
             Tank,
@@ -50,13 +49,29 @@ pub fn spawn_tank(
 
 pub fn move_particles(
     fluid_query: Query<(&FlipFluid, &Children)>,
-    mut particle_query: Query<&mut Transform>,
+    mut particle_query: Query<&mut Transform, With<LiquidParticle>>,
 ) {
     let offset = Vec2::new(WIDTH * -0.5, HEIGHT * -0.5);
     for (fluid, children) in &fluid_query {
         for (i, child) in children.iter().enumerate() {
             if let Ok(mut transform) = particle_query.get_mut(*child) {
                 transform.translation = (fluid.position(i) + offset).extend(1.);
+            }
+        }
+    }
+}
+
+pub fn color_particles(
+    fluid_query: Query<(&FlipFluid, &Children)>,
+    particle_query: Query<&MeshMaterial2d<ColorMaterial>, With<LiquidParticle>>,
+    mut colors: ResMut<Assets<ColorMaterial>>,
+) {
+    for (fluid, children) in &fluid_query {
+        for (i, child) in children.iter().enumerate() {
+            if let Ok(color_material) = particle_query.get(*child) {
+                if let Some(material) = colors.get_mut(color_material.id()) {
+                    material.color = fluid.color(i);
+                }
             }
         }
     }
@@ -133,7 +148,7 @@ pub fn update_linear_velocity(
 
 pub fn update_angular_velocity(mut physics_query: Query<&mut AngularVelocity>, time: Res<Time>) {
     for mut angular_velocity in &mut physics_query {
-        angular_velocity.0 = (time.elapsed_secs() * 0.4).sin() * 4.;
+        angular_velocity.0 = (time.elapsed_secs() * 0.2).sin() * 8.;
     }
 }
 

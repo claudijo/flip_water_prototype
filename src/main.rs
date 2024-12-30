@@ -13,6 +13,7 @@ use crate::liquid_simulator::{LiquidSimulationDebugPlugin, LiquidSimulatorPlugin
 use crate::pic_flip::PicFlipPlugin;
 use bevy::asset::AssetMetaCheck;
 use bevy::prelude::*;
+use bevy::render::camera::ScalingMode;
 
 fn main() {
     App::new()
@@ -32,5 +33,12 @@ fn main() {
 }
 
 fn setup(mut commands: Commands) {
-    commands.spawn(Camera2d);
+    commands.spawn((Camera2d, OrthographicProjection {
+        scale: 0.4,
+        near: -1000.0,
+        far: 1000.0,
+        viewport_origin: Vec2::new(0.5, 0.5),
+        scaling_mode: ScalingMode::WindowSize,
+        area: Rect::new(-1.0, -1.0, 1.0, 1.0),
+    }) );
 }

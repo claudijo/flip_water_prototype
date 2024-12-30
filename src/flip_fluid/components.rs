@@ -213,10 +213,20 @@ impl FlipFluid {
             );
             self.transfer_velocities(Some(flip_ratio));
         }
+
+        self.update_particle_colors();
     }
 
     pub fn position(&self, i: usize) -> Vec2 {
         Vec2::new(self.particle_pos[2 * i], self.particle_pos[2 * i + 1])
+    }
+
+    pub fn color(&self, i:usize) -> Color {
+        Color::srgb(
+            self.particle_color[3 * i],
+            self.particle_color[3 * i + 1],
+            self.particle_color[3 * i + 2],
+        )
     }
 
 
@@ -702,6 +712,36 @@ impl FlipFluid {
                         self.v[center] -= sy0 * p;
                         self.v[top] += sy1 * p;
                     }
+                }
+            }
+        }
+    }
+
+    fn update_particle_colors(&mut self) {
+        let h1 = self.f_inv_spacing;
+
+        for i in 0..self.num_particles {
+            let s = 0.01;
+
+            self.particle_color[3 * i] = (self.particle_color[3 * i] - s).clamp( 0.0, 1.0);
+            self.particle_color[3 * i + 1] = (self.particle_color[3 * i + 1] - s).clamp( 0.0, 1.0);
+            self.particle_color[3 * i + 2] = (self.particle_color[3 * i + 2] + s).clamp( 0.0, 1.0);
+
+            let x = self.particle_pos[2 * i];
+            let y = self.particle_pos[2 * i + 1];
+            let xi = ((x * h1).floor() as usize).clamp( 1, self.f_num_x - 1);
+            let yi = ((y * h1).floor() as usize).clamp(1, self.f_num_y - 1);
+            let cell_nr = xi * self.f_num_y + yi;
+
+            let d0 = self.particle_rest_density;
+
+            if d0 > 0.0 {
+                let rel_density = self.particle_density[cell_nr] / d0;
+                if rel_density < 0.7 {
+                    let s = 0.8;
+                    self.particle_color[3 * i] = s;
+                    self.particle_color[3 * i + 1] = s;
+                    self.particle_color[3 * i + 2] = 1.0;
                 }
             }
         }
