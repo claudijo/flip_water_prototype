@@ -1,7 +1,10 @@
 mod components;
 mod systems;
 
-use crate::flip_fluid::systems::{color_particles, integrate_position, integrate_rotation, move_particles, simulate_liquid, spawn_tank, update_angular_velocity, update_linear_velocity};
+use crate::flip_fluid::systems::{
+    color_particles, integrate_position, integrate_rotation, move_particles, simulate_liquid,
+    spawn_tank, update_angular_velocity, update_linear_velocity,
+};
 use bevy::prelude::*;
 
 pub struct FlipFluidPlugin;
@@ -14,10 +17,10 @@ impl Plugin for FlipFluidPlugin {
             PreUpdate,
             (
                 update_linear_velocity,
-                update_angular_velocity,
                 integrate_position,
                 integrate_rotation,
                 simulate_liquid,
+                update_angular_velocity,
             )
                 .chain(),
         );

@@ -659,14 +659,5 @@ mod tests {
         let j = 0;
 
         simulator.set_boundary_velocities();
-
-        println!(
-            "horizontal_velocity {:?}",
-            simulator.horizontal_velocities.get(i, j).unwrap()
-        );
-        println!(
-            "vertical_velocity {:?}",
-            simulator.vertical_velocities.get(i, j).unwrap()
-        );
     }
 }

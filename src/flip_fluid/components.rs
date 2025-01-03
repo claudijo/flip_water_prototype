@@ -1,7 +1,8 @@
+use bevy::color::palettes::basic::YELLOW;
+use bevy::math::Affine3A;
+use bevy::prelude::*;
 use std::f32::EPSILON;
 use std::ops::Neg;
-use bevy::color::palettes::basic::YELLOW;
-use bevy::prelude::*;
 
 #[derive(Component)]
 pub struct LiquidParticle;
@@ -20,6 +21,9 @@ pub struct AngularVelocity(pub f32);
 
 #[derive(Component)]
 pub struct PrevAngularVelocity(pub f32);
+
+#[derive(Component)]
+pub struct PrevGlobalTransform(pub Affine3A);
 
 const FLUID_CELL: i32 = 0;
 const AIR_CELL: i32 = 1;
@@ -159,7 +163,7 @@ impl FlipFluid {
 
         for i in 0..self.f_num_x {
             for j in 0..self.f_num_y {
-                if i == 0 || i == self.f_num_x - 1 || j == 0 {
+                if i == 0 || i == self.f_num_x - 1 || j == 0 || j == self.f_num_y - 1 {
                     self.s[i * n + j] = 0.;
                 }
             }
@@ -221,14 +225,13 @@ impl FlipFluid {
         Vec2::new(self.particle_pos[2 * i], self.particle_pos[2 * i + 1])
     }
 
-    pub fn color(&self, i:usize) -> Color {
+    pub fn color(&self, i: usize) -> Color {
         Color::srgb(
             self.particle_color[3 * i],
             self.particle_color[3 * i + 1],
             self.particle_color[3 * i + 2],
         )
     }
-
 
     // Pass in gravity vec, linear_accel, angular_vel, angular_accel, center_or_rotation separately.
     fn integrate_particles(
@@ -245,17 +248,16 @@ impl FlipFluid {
         let angular_velocity_2 = angular_velocity * angular_velocity;
 
         for i in 0..self.num_particles {
-
             let dx = rotation_center_x - self.particle_pos[2 * i];
             let dy = rotation_center_y - self.particle_pos[2 * i + 1];
             let r = (dx * dx + dy * dy).sqrt();
 
-           if r > f32::EPSILON && angular_accel.abs() > f32::EPSILON {
-               let tangent = Vec2::new(-dy, dx).normalize() * angular_accel * r;
+            if r > f32::EPSILON && angular_accel.abs() > f32::EPSILON {
+                let tangent = Vec2::new(-dy, dx).normalize() * angular_accel * r;
 
-               self.particle_vel[2 * i] += dt * tangent.x;
-               self.particle_vel[2 * i + 1] += dt * tangent.y;
-           }
+                self.particle_vel[2 * i] += dt * tangent.x;
+                self.particle_vel[2 * i + 1] += dt * tangent.y;
+            }
 
             if r > f32::EPSILON {
                 let centripetal_accel = Vec2::new(dx, dy).normalize() * angular_velocity_2 * r;
@@ -386,21 +388,23 @@ impl FlipFluid {
         let h = 1. / self.f_inv_spacing;
         let r = self.particle_radius;
         let min_x = h + r;
-        let max_x = (self.f_num_x - 1) as f32 * h - r;
+        let max_x = (self.f_num_x - 1) as f32 * h - r * 4.;
         let min_y = h + r;
-        let max_y = (self.f_num_y - 1) as f32 * h - r;
+        let max_y = (self.f_num_y - 1) as f32 * h - r * 4.;
+
+        let cap_y = |x: f32| -> f32 { -((x - max_x * 0.5) * 0.5).abs() + max_y };
 
         for i in 0..self.num_particles {
             let mut x = self.particle_pos[2 * i];
             let mut y = self.particle_pos[2 * i + 1];
 
+            let capped_y = cap_y(x);
+
             // wall collisions
             if x < min_x {
                 x = min_x;
                 self.particle_vel[2 * i] = 0.;
-            }
-
-            if x > max_x {
+            } else if x > max_x {
                 x = max_x;
                 self.particle_vel[2 * i] = 0.;
             }
@@ -408,10 +412,8 @@ impl FlipFluid {
             if y < min_y {
                 y = min_y;
                 self.particle_vel[2 * i + 1] = 0.;
-            }
-
-            if y > max_y {
-                y = max_y;
+            } else if y > capped_y {
+                y = capped_y;
                 self.particle_vel[2 * i + 1] = 0.;
             }
 
@@ -723,13 +725,13 @@ impl FlipFluid {
         for i in 0..self.num_particles {
             let s = 0.01;
 
-            self.particle_color[3 * i] = (self.particle_color[3 * i] - s).clamp( 0.0, 1.0);
-            self.particle_color[3 * i + 1] = (self.particle_color[3 * i + 1] - s).clamp( 0.0, 1.0);
-            self.particle_color[3 * i + 2] = (self.particle_color[3 * i + 2] + s).clamp( 0.0, 1.0);
+            self.particle_color[3 * i] = (self.particle_color[3 * i] - s).clamp(0.0, 1.0);
+            self.particle_color[3 * i + 1] = (self.particle_color[3 * i + 1] - s).clamp(0.0, 1.0);
+            self.particle_color[3 * i + 2] = (self.particle_color[3 * i + 2] + s).clamp(0.0, 1.0);
 
             let x = self.particle_pos[2 * i];
             let y = self.particle_pos[2 * i + 1];
-            let xi = ((x * h1).floor() as usize).clamp( 1, self.f_num_x - 1);
+            let xi = ((x * h1).floor() as usize).clamp(1, self.f_num_x - 1);
             let yi = ((y * h1).floor() as usize).clamp(1, self.f_num_y - 1);
             let cell_nr = xi * self.f_num_y + yi;
 

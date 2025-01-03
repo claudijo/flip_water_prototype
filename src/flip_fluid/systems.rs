@@ -1,8 +1,11 @@
 use crate::flip_fluid::components::{
     AngularVelocity, FlipFluid, LinearVelocity, LiquidParticle, PrevAngularVelocity,
-    PrevLinearVelocity, Tank,
+    PrevGlobalTransform, PrevLinearVelocity, Tank,
 };
+use crate::utils::mechanics::center_of_rotation;
+use bevy::color::palettes::basic::{GREEN, YELLOW};
 use bevy::input::mouse::MouseMotion;
+use bevy::math::Affine3A;
 use bevy::prelude::*;
 use std::ops::Neg;
 
@@ -15,11 +18,9 @@ pub fn spawn_tank(
     mut materials: ResMut<Assets<ColorMaterial>>,
 ) {
     let density = 1000.;
-    let num_x = 20;
-    let num_y = 20;
+    let num_x = 30;
+    let num_y = 30;
     let max_particles = num_x * num_y;
-
-    let a = materials.add(Color::srgb(0.3, 0.3, 0.3));
 
     commands
         .spawn((
@@ -27,12 +28,13 @@ pub fn spawn_tank(
             MeshMaterial2d(materials.add(Color::srgb(0.4, 0.4, 0.4))),
             Transform::from_xyz(0., 0., -1.),
             Visibility::default(),
-            FlipFluid::new(density, WIDTH, HEIGHT, 2., 0.4, max_particles)
-                .with_particles(num_x, num_y)
-                .with_solid_border(),
+            FlipFluid::new(density, WIDTH, HEIGHT, 2., 0.2, max_particles)
+                .with_solid_border()
+                .with_particles(num_x, num_y),
             Tank,
-            LinearVelocity(Vec2::ZERO),
-            PrevLinearVelocity(Vec2::ZERO),
+            LinearVelocity(Vec2::default()),
+            PrevLinearVelocity(Vec2::default()),
+            PrevGlobalTransform(Affine3A::default()),
             AngularVelocity(0.),
             PrevAngularVelocity(0.),
         ))
@@ -80,23 +82,33 @@ pub fn color_particles(
 pub fn simulate_liquid(
     mut fluid_query: Query<(
         &mut FlipFluid,
+        &GlobalTransform,
         &Transform,
         &mut PrevLinearVelocity,
         &LinearVelocity,
         &AngularVelocity,
         &mut PrevAngularVelocity,
+        &mut PrevGlobalTransform,
     )>,
     time: Res<Time>,
     mut gizmos: Gizmos,
 ) {
-    for (mut fluid, transform, mut prev_linear_velocity, linear_velocity, angular_velocity, mut prev_angular_velocity) in
-        &mut fluid_query
+    for (
+        mut fluid,
+        global_transform,
+        transform,
+        mut prev_linear_velocity,
+        linear_velocity,
+        angular_velocity,
+        mut prev_angular_velocity,
+        mut prev_global_transform,
+    ) in &mut fluid_query
     {
         let gravity_angle = (transform.rotation * Vec3::NEG_Y)
             .xy()
             .angle_to(Vec2::NEG_X);
         let gravity_vec = Vec2::from_angle(gravity_angle);
-        let gravity = gravity_vec * 500.;
+        let gravity = gravity_vec * 400.;
 
         let linear_velocity_delta = linear_velocity.0 - prev_linear_velocity.0;
         let tank_acceleration = linear_velocity_delta / time.delta_secs();
@@ -112,7 +124,23 @@ pub fn simulate_liquid(
             gravity
         };
 
-        let rotation_center = Vec2::new(WIDTH * 0.5, HEIGHT * 0.5);
+        let point_a = prev_global_transform.0.translation.xy();
+        let velocity_a = global_transform.translation().xy() - point_a;
+        let point_b = prev_global_transform.0.transform_point3(Vec3::Y * 1.).xy();
+        let velocity_b = global_transform.transform_point(Vec3::Y * 1.).xy() - point_b;
+        prev_global_transform.0 = global_transform.affine();
+
+        let pole = center_of_rotation(point_a, velocity_a, point_b, velocity_b);
+        let tank_offset = Vec2::new(WIDTH * 0.5, HEIGHT * 0.5);
+        let rotation_center = tank_offset
+            + global_transform
+                .affine()
+                .inverse()
+                .transform_point(pole.extend(0.))
+                .xy();
+
+        println!("local rotation center {:.2}", rotation_center);
+        gizmos.circle_2d(Isometry2d::from(pole), 4., YELLOW);
 
         fluid.simulate(
             time.delta_secs(),
@@ -149,6 +177,8 @@ pub fn update_linear_velocity(
 pub fn update_angular_velocity(mut physics_query: Query<&mut AngularVelocity>, time: Res<Time>) {
     for mut angular_velocity in &mut physics_query {
         angular_velocity.0 = (time.elapsed_secs() * 0.2).sin() * 8.;
+
+        // angular_velocity.0 += 0.001;
     }
 }
 
@@ -157,12 +187,14 @@ pub fn integrate_rotation(
     time: Res<Time>,
 ) {
     for (mut transform, angular_velocity) in &mut physics_query {
-        // transform.rotate_around(
-        //     Vec3::new(0., 0., 0.),
-        //     Quat::from_rotation_z(angular_velocity.0),
-        // );
+        transform.rotate_around(
+            Vec3::new(0., 0., 0.),
+            Quat::from_rotation_z(angular_velocity.0 * time.delta_secs()),
+        );
 
-        transform.rotate(Quat::from_rotation_z(angular_velocity.0 * time.delta_secs()));
+        // transform.rotate(Quat::from_rotation_z(
+        //     angular_velocity.0 * time.delta_secs(),
+        // ));
     }
 }
 
