@@ -1,4 +1,4 @@
-use bevy::color::palettes::basic::YELLOW;
+use bevy::color::palettes::basic::{RED, YELLOW};
 use bevy::math::Affine3A;
 use bevy::prelude::*;
 use std::f32::EPSILON;
@@ -260,14 +260,21 @@ impl FlipFluid {
             }
 
             if r > f32::EPSILON {
-                let centripetal_accel = Vec2::new(dx, dy).normalize() * angular_velocity_2 * r;
+                let centripetal_accel =
+                    Vec2::new(dx, dy).normalize().neg() * angular_velocity_2 * r;
                 self.particle_vel[2 * i] += dt * centripetal_accel.x;
-                self.particle_vel[2 * i + 1] += dt * -centripetal_accel.y;
+                self.particle_vel[2 * i + 1] += dt * centripetal_accel.y;
 
                 // gizmos.arrow_2d(
                 //     Vec2::ZERO,
-                //     Vec2::new(dt * centripetal_accel.x,  dt * -centripetal_accel.y) * 50.,
+                //     Vec2::new(dt * -centripetal_accel.x,  dt * -centripetal_accel.y) * 50.,
                 //     YELLOW,
+                // );
+
+                // gizmos.arrow_2d(
+                //     Vec2::ZERO,
+                //     centripetal_accel * 0.1,
+                //     RED,
                 // );
             }
 

@@ -177,8 +177,8 @@ pub fn update_linear_velocity(
 pub fn update_angular_velocity(mut physics_query: Query<&mut AngularVelocity>, time: Res<Time>) {
     for mut angular_velocity in &mut physics_query {
         angular_velocity.0 = (time.elapsed_secs() * 0.2).sin() * 8.;
-
         // angular_velocity.0 += 0.001;
+        // angular_velocity.0 = 4.;
     }
 }
 
